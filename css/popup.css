@@ -1,4 +1,4 @@
-#popupToolbar span {
+#PopupToolbar span {
     width: 80px;
     margin-bottom: 4px;
     display: inline-block;
@@ -12,7 +12,7 @@ input#editButton {
 }
 
 .popupLabel {
-    width: 80px;
+    width: 110px;
     display: inline-block;
 }
 
@@ -26,7 +26,9 @@ input#editButton {
 .relatedLabel {
     padding: 0px;
     width: 120px;
-    display: inline-block;
+    display: block;
+    float: left;
+    clear: left;
 }
 
 .relatedButton {
