@@ -1,0 +1,39 @@
+#popupToolbar span {
+    width: 80px;
+    margin-bottom: 4px;
+    display: inline-block;
+}
+input.popupButtons {
+    display: none;
+}
+
+input#editButton {
+    display: initial;
+}
+
+.popupLabel {
+    width: 80px;
+    display: inline-block;
+}
+
+.popupField:read-only {
+    border: none;
+}
+.popupField:-moz-read-only {
+    border: none;
+}
+
+.relatedLabel {
+    padding: 0px;
+    width: 120px;
+    display: inline-block;
+}
+
+.relatedButton {
+    margin: 2px;
+}
+
+.leaflet-popup-content-wrapper {
+    z-index: 1000;
+}
+
