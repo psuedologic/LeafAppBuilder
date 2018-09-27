@@ -12,25 +12,42 @@ input#editButton {
 }
 
 .popupLabel {
-    width: 110px;
     display: inline-block;
+    vertical-align: top;
+    width: 110px;
+    height: 100%;
 }
 
-.popupField:read-only {
+.popupTextarea {
+    overflow-y: scroll;
+    resize: none;
+}
+
+textarea::-webkit-scrollbar {
+    width: 0px;  /* remove scrollbar space */
+    background: transparent;  /* optional: just make scrollbar invisible */
+}
+/* optional: show position indicator in red */
+textarea::-webkit-scrollbar-thumb {
+    background: #FF0000;
+}
+.popupTextarea:read-only {
     border: none;
 }
-.popupField:-moz-read-only {
+.popupTextarea:-moz-read-only {
     border: none;
 }
 
 .relatedLabel {
     padding: 0px;
-    width: 120px;
+    width: 95px;
     display: block;
     float: left;
     clear: left;
 }
-
+.relatedSelect {
+    width: 130px;
+}
 .relatedButton {
     margin: 2px;
 }

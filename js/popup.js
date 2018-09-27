@@ -1,5 +1,5 @@
-import { relationships, relatedQuery } from './mainApp.js';
-export { generateSitePopup, Popup };
+//import { relationships, relatedQuery } from './mainApp.js';
+export { Popup };
 
 window.Popup = Popup;
 
@@ -34,8 +34,9 @@ function Popup(bundle) {
     var sourceLayer = bundle.featureLayer;
     var url = bundle.featureLayer.options.url;
     var options = bundle.options;
-    options.hide = {};
+        options.hide = {};
     var relationships = [];
+    var relationshipsData;
     var ready = false;    
     var test = {};
 
@@ -46,7 +47,8 @@ function Popup(bundle) {
     (function () {
         getFields().then(() => {
             ready = true;
-            getRelationshipFields()
+            getRelationshipFields();
+            dataLayer.on("click", popup);
         });
 
         //Assign defaults
@@ -64,12 +66,10 @@ function Popup(bundle) {
             $.ajax({url: url + "/?f=json", method: "GET"})
             .done((data) => {
                 fields = data.fields;
-                relationships.push(data.relationships);
+                relationships = data.relationships;
                 if (relationships.length > 0 ) {
                     //getRelationshipFields() 
                 }
-                console.log(data);
-
                 resolve();
             }).fail((error) => {
                 console.err("Unable to retrieve data in getFields method for popup")
@@ -101,15 +101,17 @@ function Popup(bundle) {
 
         let toolbarText = genToolbar();
         let fieldsText = genFields();
-        let relatedText = genRelated(currentId);
-        let popupText = toolbarText + fieldsText + relatedText;
-        
-        // loadPopup()
-        //console.log("Current Pop-up: " + popupText);
-        currentFeature.bindPopup(function(layer) {
-            return L.Util.template(popupText, layer.feature.properties);
-        }); 
-        currentFeature.openPopup();
+        let relatedText;
+        genRelated(currentId).then(relatedText => {
+
+            let popupText = toolbarText + fieldsText + relatedText;
+
+            currentFeature.bindPopup(function(layer) {
+                return L.Util.template(popupText, layer.feature.properties);
+            }); 
+            currentFeature.openPopup();
+        });
+                
     }
 
     //Create the toolbar portion of the popup, Consisting of title and toolbar
@@ -139,7 +141,7 @@ function Popup(bundle) {
 
         //Helper function to make buttons
         function genButton(button) {
-            return "<input class='popupButtons' type='image' width='24px' src='images/" + button + ".png' onclick='" + button +"ButtonClicked()' id='" + button + "Button' />";
+            return `<input class='popupButtons' type='image' width='24px' src='images/${button}.png' onclick='" + button +"ButtonClicked()' id='${button}Button' />`;
         }
         let closingTags = "</div>";
         return title + buttons + closingTags;
@@ -152,7 +154,7 @@ function Popup(bundle) {
 
             //Check that the field is not on the global hide list
             if (! options.hide.global.includes(name)) {
-                fieldsText += genField(name,'{' + name + '}');
+                fieldsText += genField(titleOverride(name),'{' + name + '}');
             }
         }
         fieldsText += "</form>";
@@ -160,90 +162,111 @@ function Popup(bundle) {
 
         //Helper function to generate a individual field
         function genField(label, value) {
-            return "<label class='popupLabel'>" + label + ":</label>" + 
-            "<input class='popupField' type='text' value='" + value + "' readonly></input>";
+            return `<div class='popupField'><label class='popupLabel'>${label}:</label> 
+            <textarea class='popupTextarea' readonly>${value}</textarea></div>`;
+            //"<input class='popupField' type='text' value='" + value + "' readonly></input>";
         }
     }
 
     //Function to generate related table links
-    function genRelated(objectId) {
-        let relatedText = "";
+    function genRelated(currentId) {
+        return new Promise((outerResolve, outerReject) => {
+            //Generates a related table link based on response from get request.
+            function genRelatedField(res) { //lateName, id) {
+                let name = res.relation.name;
+                name = name.split(".").slice(2).join(".");
+                name = titleOverride(name);
+                
+                let id = res.relation.id;
+                let relatedOptions = genOptions(res);
+                
+                console.log(res);
 
-        var relatedQuery = L.esri.Related.query(dataLayer);
+                let text = 
+                   `<label class='relatedLabel'> ${name}:  </label>
+                    <select class='relatedSelect'>${relatedOptions}</select>
+                    <input type='button' value='Go' class='relatedButton'
+                        onclick='openRelatedPopup(${currentId}','${id})'>
+                    </input><br>`;
 
-        relationships.forEach(function(relation) {
-            relatedQuery.objectIds(objectId)
-            .relationshipId("" + relation.id)
-            .returnGeometry(false)
-            .returnZ(false)
-            .run(function(err, res, raw) {
-                try {
-                    if ( res.features.length > 0) {
-                        popup +=
-                        "<label class='relatedLabel'>" + relation.name + ": "
-                            + res.features.length + "</label>" +
-                        "<input type='button' value='Open' class='relatedButton' " +
-                            "onclick='openRelatedPopup(" + currentId + ',' + relation.id + ")" +
-                        "'></input><br />";
+                return text;
+            }
+            //Helper function to generate Options for related select menu
+            function genOptions(res) {
+                let relatedOptions = "";
+                let layerName = res.relation.name;
+
+                res.features.map((feature) => {
+                    let option;
+                    console.log(options)
+                    
+                    //If the current options is in the global related key override, use that override
+                    if (options.relatedKeyOverrides.hasOwnProperty(layerName)) {
+                        option = feature.properties[ options.relatedKeyOverrides[layerName]];
+                    } //Else use the default override
+                    else {  
+                        option = feature.properties[options.relatedKey];
                     }
-                    currentFeature.bindPopup(function(layer) {
-                        return L.Util.template(popup, layer.feature.properties);
-                    });         
-                    
-                } catch (err) {
-                    console.error(err);
-                }
-            }); 
-        });
+                    relatedOptions += `<option value='${option}'>${option}</option>`
+                });
+                return relatedOptions;
+            }
+            
+            let relatedText = "";
+
+            let relatedQuery = L.esri.Related.query(dataLayer);
+
+
+            relationshipsData = relationships.map((relation, index) => {
+                return new Promise((resolve, reject) => {
+                relatedQuery.objectIds(currentId)
+                    .relationshipId("" + relation.id)
+                    .returnGeometry(false)
+                    .returnZ(false)
+                    .run(function(err, res, raw) {
+                        res.relation = relation;
+                        resolve(res);                    
+                    });
+                });
+            });
         
-        // relationships.forEach(function(relation) {
-        //     relatedQuery.objectIds(event.layer.feature.properties.OBJECTID)
-        //     .relationshipId("" + relation.id)
-        //     .returnGeometry(false)
-        //     .returnZ(false)
-        //     .run(function(err, res, raw) {
-        //         try {
-        //             if ( res.features.length > 0) {
-        //                 popup +=
-        //                 "<label class='relatedLabel'>" + relation.name + ": "
-        //                     + res.features.length + "</label>" +
-        //                 "<input type='button' value='Open' class='relatedButton' " +
-        //                     "onclick='openRelatedPopup(" + currentId + ',' + relation.id + ")" +
-        //                 "'></input><br />";
-        //             }
-        //             currentFeature.bindPopup(function(layer) {
-        //                 return L.Util.template(popup, layer.feature.properties);
-        //             });         
-                    
-        //         } catch (err) {
-        //             console.error(err);
-        //         }
-        //     }); 
-        // });
-
-
-
-        return relatedText;
+            
+            Promise.all(relationshipsData).then(responses => {
+                responses.forEach(res => {
+                    if ( res.features.length > 0) {
+                        relatedText += genRelatedField(res);
+                    }
+                });
+                outerResolve( `<hr><div id='relatedLinks'> ${relatedText} </div>`);
+            });
+        });
     }
+    function titleOverride(name) {
+        for (let old in options.titleOverrides) {
+            name = name.replace(old, options.titleOverrides[old]);
+        }
+        return name;
+    }   
+
     return {
         url: url,
         popup: popup,
         options: options,
         test: test,
-        setTitleOverride: (title) => {
-            titleOverride = title;
+        setTitleOverrides: (title) => {
+            options.titleOverrides = title;
         },
         setGlobalHide: (hideList) => {
             options.hide.global = hideList;
+        },
+        setRelatedKeyOverride: (overrides) => {
+            options.relatedKeyOverrides = overrides;
         }
     }
 }
 
 
-
-
-
-
+/*
 
 
 function openRelatedPopup(oid, relatedId) {
@@ -345,3 +368,4 @@ function generateSitePopup(event, currentFeature) {
         }); 
     });
 }
+*/
