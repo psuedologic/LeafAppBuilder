@@ -31,16 +31,17 @@ function Popup(bundle) {
     }
 
     //Member Variables 
+    var popups = [];
+    var currentFeature;
     var sourceLayer = bundle.featureLayer;
     var url = bundle.featureLayer.options.url;
     var options = bundle.options;
         options.hide = {};
     var relationships = [];
-    var relationshipsData;
+    var relationshipsData = [];
     var ready = false;    
-    var test = {};
 
-    var fields;
+    var mainFields;
   
 
     //Perform initialization
@@ -65,7 +66,7 @@ function Popup(bundle) {
         return new Promise(function(resolve, reject) {
             $.ajax({url: url + "/?f=json", method: "GET"})
             .done((data) => {
-                fields = data.fields;
+                mainFields = data.fields;
                 relationships = data.relationships;
                 if (relationships.length > 0 ) {
                     //getRelationshipFields() 
@@ -96,30 +97,31 @@ function Popup(bundle) {
 
     //Generate a popup in response to an event
     function popup(event) {
-        let currentFeature = sourceLayer.getFeature(event.layer.feature.id);
+        currentFeature = sourceLayer.getFeature(event.layer.feature.id);
         let currentId = event.layer.feature.id;
 
-        let toolbarText = genToolbar();
-        let fieldsText = genFields();
+        let toolbarText = genToolbar(options.titleOverride);
+        let fieldsText = genFields(mainFields);
         let relatedText;
         genRelated(currentId).then(relatedText => {
 
             let popupText = toolbarText + fieldsText + relatedText;
 
             currentFeature.bindPopup(function(layer) {
-                return L.Util.template(popupText, layer.feature.properties);
+                let popup = L.Util.template(popupText, layer.feature.properties);
+                popups.push(popup);
+                return popup;
             }); 
             currentFeature.openPopup();
         });
-                
     }
 
     //Create the toolbar portion of the popup, Consisting of title and toolbar
-    function genToolbar() {
+    function genToolbar(titleOverride) {
         // Create Title
         let title = "<div id='PopupToolbar'><span>";
-        if (options.titleOverride !== undefined) {
-            title += options.titleOverride  + "</span>";
+        if (titleOverride !== undefined) {
+            title += titleOverride  + "</span>";
         }
         else {
             title += "ObjectID: {OBJECTID}";
@@ -128,7 +130,9 @@ function Popup(bundle) {
 
         //Create Buttons
         let buttons = "";
-        if (options.allowEdits) {
+        buttons += genButton("back");
+        buttons += genButton("forward");
+                if (options.allowEdits) {
             buttons += genButton("edit");
         }
         if (options.allowMove) {
@@ -141,33 +145,41 @@ function Popup(bundle) {
 
         //Helper function to make buttons
         function genButton(button) {
-            return `<input class='popupButtons' type='image' width='24px' src='images/${button}.png' onclick='" + button +"ButtonClicked()' id='${button}Button' />`;
+            return `<input class='popupButtons' type='image' src='images/${button}.png' onclick='Popup.events.${button}ButtonClicked()' id='${button}Button' />`;
         }
         let closingTags = "</div>";
         return title + buttons + closingTags;
     }
     //Function to generates fields
-    function genFields() {
+    function genFields(fields, type) {
         let fieldsText = "<hr><form id='popupForm'>";
-        for (let i=0; i < fields.length; i++) {
-            let name = fields[i].name;
 
-            //Check that the field is not on the global hide list
-            if (! options.hide.global.includes(name)) {
-                fieldsText += genField(titleOverride(name),'{' + name + '}');
+        if (type === undefined || type == "main") {
+            for (let i=0; i < fields.length; i++) {
+                let name = fields[i].name;
+
+                //Check that the field is not on the global hide list
+                if (! options.hide.global.includes(name)) {
+                    fieldsText += genField(titleOverride(name),'{' + name + '}');
+                }
+            }
+            //Helper function to generate a individual field
+            function genField(label, value) {
+                return `<div class='popupField'><label class='popupLabel'>${label}:</label> 
+                <textarea class='popupTextarea' readonly>${value}</textarea></div>`;
+                //"<input class='popupField' type='text' value='" + value + "' readonly></input>";
+            }
+        } else if (type == "related") {
+            for (let key in fields) {
+                if (! options.hide.global.includes(key)) {
+                    fieldsText += `<div class='popupField'><label class='popupLabel'>${key}:</label> 
+                    <textarea class='popupTextarea' readonly>${fields[key]}</textarea></div>`
+                }
             }
         }
         fieldsText += "</form>";
-        return fieldsText;
-
-        //Helper function to generate a individual field
-        function genField(label, value) {
-            return `<div class='popupField'><label class='popupLabel'>${label}:</label> 
-            <textarea class='popupTextarea' readonly>${value}</textarea></div>`;
-            //"<input class='popupField' type='text' value='" + value + "' readonly></input>";
-        }
+            return fieldsText;
     }
-
     //Function to generate related table links
     function genRelated(currentId) {
         return new Promise((outerResolve, outerReject) => {
@@ -177,16 +189,13 @@ function Popup(bundle) {
                 name = name.split(".").slice(2).join(".");
                 name = titleOverride(name);
                 
-                let id = res.relation.id;
                 let relatedOptions = genOptions(res);
-                
-                console.log(res);
 
                 let text = 
                    `<label class='relatedLabel'> ${name}:  </label>
                     <select class='relatedSelect'>${relatedOptions}</select>
                     <input type='button' value='Go' class='relatedButton'
-                        onclick='openRelatedPopup(${currentId}','${id})'>
+                        onclick="Popup.events.openRelatedPopup(this,'${res.relation.name}')">
                     </input><br>`;
 
                 return text;
@@ -198,7 +207,6 @@ function Popup(bundle) {
 
                 res.features.map((feature) => {
                     let option;
-                    console.log(options)
                     
                     //If the current options is in the global related key override, use that override
                     if (options.relatedKeyOverrides.hasOwnProperty(layerName)) {
@@ -207,7 +215,7 @@ function Popup(bundle) {
                     else {  
                         option = feature.properties[options.relatedKey];
                     }
-                    relatedOptions += `<option value='${option}'>${option}</option>`
+                    relatedOptions += `<option value='${feature.properties.OBJECTID}'>${option}</option>`
                 });
                 return relatedOptions;
             }
@@ -215,9 +223,7 @@ function Popup(bundle) {
             let relatedText = "";
 
             let relatedQuery = L.esri.Related.query(dataLayer);
-
-
-            relationshipsData = relationships.map((relation, index) => {
+            let relationshipsPromise = relationships.map((relation, index) => {
                 return new Promise((resolve, reject) => {
                 relatedQuery.objectIds(currentId)
                     .relationshipId("" + relation.id)
@@ -229,16 +235,17 @@ function Popup(bundle) {
                     });
                 });
             });
-        
             
-            Promise.all(relationshipsData).then(responses => {
+            Promise.all(relationshipsPromise).then(responses => {
                 responses.forEach(res => {
+                    relationshipsData.push(res);
                     if ( res.features.length > 0) {
                         relatedText += genRelatedField(res);
                     }
                 });
                 outerResolve( `<hr><div id='relatedLinks'> ${relatedText} </div>`);
             });
+
         });
     }
     function titleOverride(name) {
@@ -246,13 +253,70 @@ function Popup(bundle) {
             name = name.replace(old, options.titleOverrides[old]);
         }
         return name;
-    }   
+    }
+    // -----------------------------------------------------------------------------------------------
+    // Button/ Event Handlers
+    function openRelatedPopup(button, relatedName) {
+        let id = $(button).prev().find(":selected").attr("value");
+        let targetLayer;
+        let fields;
 
+        relationshipsData.map((data, index) => {
+            if (data.relation.name == relatedName) {
+                targetLayer = data.features;
+            }
+        });
+        targetLayer.map((entity, index) => {
+            if (entity.id == id) {
+                fields = entity.properties;
+            }
+        });
+        let title;
+        if (options.relatedTitle !== undefined && options.relatedKey !== undefined) {
+            title = options.relatedTitle + ": " + fields[options.relatedKey];
+        }
+        else {
+            title = "OBJECTID: {OBJECTID}"
+        }
+
+        let toolbarText = genToolbar(title);
+        let fieldsText = genFields(fields, "related");
+
+        let popupText = toolbarText + fieldsText;        
+
+        currentFeature.setPopupContent(popupText);
+        currentFeature.openPopup();
+      
+        $("#backButton").css("filter","invert(0)");
+    }
+
+    function backButtonClicked() {
+        let oldPopup = popups.pop();
+        popups.push(sourceLayer.getPopup());
+
+        currentFeature.setPopupContent(oldPopup);
+
+        currentFeature.openPopup();
+
+        $("#backButton").css("filter","invert(0.8)");
+        $("#backButton").css("filter","invert(0)");
+    }
+
+    function forwardButtonClicked() {
+        
+    }
+
+    //Defines global functions that are called by buttons/ event
+    window.Popup.events = {
+        openRelatedPopup: openRelatedPopup,
+        backButtonClicked: backButtonClicked,
+        forwardButtonClicked: forwardButtonClicked
+    }
+    //Publically accessable members and methods.
     return {
         url: url,
         popup: popup,
         options: options,
-        test: test,
         setTitleOverrides: (title) => {
             options.titleOverrides = title;
         },

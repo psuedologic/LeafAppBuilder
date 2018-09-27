@@ -1,14 +1,16 @@
 #PopupToolbar span {
-    width: 80px;
+    width: 120px;
     margin-bottom: 4px;
     display: inline-block;
 }
 input.popupButtons {
-    display: none;
+    filter: invert(0.8);
+    width: 24px;
+
 }
 
-input#editButton {
-    display: initial;
+input#editButton, input#moveButton {
+    filter: invert(0);
 }
 
 .popupLabel {
