@@ -4,13 +4,28 @@
     display: inline-block;
 }
 input.popupButtons {
-    filter: invert(0.8);
     width: 24px;
-
+    margin: 1px;
+}
+input.popupButtons:enabled {
+    filter: invert(0);
+}
+input.popupButtons:disabled {
+    filter: invert(0.8);
 }
 
-input#editButton, input#moveButton {
-    filter: invert(0);
+input.activePopupButton {
+    background-color:rgb(162, 215, 255);
+}
+
+#PopupToolbar span, label.popupLabel, label.relatedLabel {
+    font-weight: 600;
+}
+
+label.relatedLabel, select.relatedSelect, input.relatedButton {
+    height: 25px;
+    margin-top: 2px;
+    margin-bottom: 2px;
 }
 
 .popupLabel {
@@ -21,11 +36,20 @@ input#editButton, input#moveButton {
 }
 
 .popupTextarea {
+    width: 145px;
+    background-color: rgb(253, 253, 253);
+    border-radius: 4px;
+    height: auto;
+    max-height: 50px;
     overflow-y: scroll;
     resize: none;
+    /* width: 145px;
+    background-color: rgb(253, 253, 253);
+    border-radius: 4px; */
+
 }
 
-textarea::-webkit-scrollbar {
+::-webkit-scrollbar {
     width: 0px;  /* remove scrollbar space */
     background: transparent;  /* optional: just make scrollbar invisible */
 }
@@ -49,12 +73,24 @@ textarea::-webkit-scrollbar-thumb {
 }
 .relatedSelect {
     width: 130px;
+    padding: 2px;
+    background-color: rgb(253, 253, 253);
+    border-radius: 4px;
 }
 .relatedButton {
-    margin: 2px;
+    margin: 1px;
+    padding: 3px;
+    border-radius: 5px;
+    background-color: rgb(162, 215, 255);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none; 
 }
 
 .leaflet-popup-content-wrapper {
     z-index: 1000;
+    background-color:rgb(236, 244, 250);
+    overflow-y: scroll;
+    max-height: 400px;
 }
 

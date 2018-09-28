@@ -3,23 +3,6 @@ export { Popup };
 
 window.Popup = Popup;
 
-//create
-// class Popup {
-//     constructor(featureClass) {
-//         var featureClass = featureClass;
-//         this.url = featureClass
-//         var ready = false;
-//         this.initialize();
-//     }
-//     initialize() {
-
-//         this.ready = true;
-//     }
-//     getFeatureClass() {
-//         return this.featureClass;
-//     }
-// }
-
 function Popup(bundle) {
     //Construction Validation
     if (bundle === undefined) {
@@ -33,13 +16,18 @@ function Popup(bundle) {
     //Member Variables 
     var popups = [];
     var currentFeature;
+    var currentRelatedFeature;
     var sourceLayer = bundle.featureLayer;
     var url = bundle.featureLayer.options.url;
     var options = bundle.options;
         options.hide = {};
+        options.hide.global = ["GlobalID"]
     var relationships = [];
     var relationshipsData = [];
-    var ready = false;    
+    var ready = false;
+    var pageIndex = -1;
+    var editMode = false;
+    var moveMode = false;
 
     var mainFields;
   
@@ -67,10 +55,10 @@ function Popup(bundle) {
             $.ajax({url: url + "/?f=json", method: "GET"})
             .done((data) => {
                 mainFields = data.fields;
-                relationships = data.relationships;
-                if (relationships.length > 0 ) {
-                    //getRelationshipFields() 
-                }
+                 relationships = data.relationships;
+                // if (relationships.length > 0 ) {
+                //     //getRelationshipFields() 
+                // }
                 resolve();
             }).fail((error) => {
                 console.err("Unable to retrieve data in getFields method for popup")
@@ -81,38 +69,35 @@ function Popup(bundle) {
 
     //Grab all relationships for the current feature layer
     function getRelationshipFields() {
-        // return new Promise(function(resolve, reject) {
-        //     $.ajax({url: url + "/?f=json", method: "GET"})
-        //     .done((data) => {
-        //         fields = data.fields;
-        //         //console.log(fields);
-        //         resolve();
-        //     }).fail((error) => {
-        //         console.err("Unable to retrieve data in getFields method for popup")
-        //         reject(error);
-        //     });
-        // });
         
     }
 
     //Generate a popup in response to an event
     function popup(event) {
+        pageIndex = -1;
+        popups = [];
+        
         currentFeature = sourceLayer.getFeature(event.layer.feature.id);
+        currentFeature.unbindPopup();
         let currentId = event.layer.feature.id;
 
         let toolbarText = genToolbar(options.titleOverride);
         let fieldsText = genFields(mainFields);
         let relatedText;
         genRelated(currentId).then(relatedText => {
-
+            
             let popupText = toolbarText + fieldsText + relatedText;
 
             currentFeature.bindPopup(function(layer) {
                 let popup = L.Util.template(popupText, layer.feature.properties);
-                popups.push(popup);
+                pageIndex++;
+                popups[pageIndex] = popup;
+                
                 return popup;
-            }); 
+            });
             currentFeature.openPopup();
+            resetButtons();
+            $(".popupTextarea").trigger("oninput");
         });
     }
 
@@ -130,28 +115,35 @@ function Popup(bundle) {
 
         //Create Buttons
         let buttons = "";
-        buttons += genButton("back");
-        buttons += genButton("forward");
-                if (options.allowEdits) {
+        buttons += genButton("back", "disabled");
+        buttons += genButton("forward", "disabled");
+        if (options.allowEdits) {
             buttons += genButton("edit");
         }
         if (options.allowMove) {
             buttons += genButton("move");
         }
         if (options.allowEdits || options.allowMove) {
-            buttons += genButton("confirm");
-            buttons += genButton("cancel");
+            buttons += genButton("confirm", "disabled");
+            buttons += genButton("cancel", "disabled");
         }
 
         //Helper function to make buttons
-        function genButton(button) {
-            return `<input class='popupButtons' type='image' src='images/${button}.png' onclick='Popup.events.${button}ButtonClicked()' id='${button}Button' />`;
+        function genButton(button, state) {
+            if (state === undefined) {
+                state = "";
+            }
+            let buttonFormatted = button.charAt(0).toUpperCase() + button.slice(1);
+            return `<input class='popupButtons' title="${buttonFormatted} Button" 
+                     type='image' src='images/${button}.png' ${state} 
+                     onclick='Popup.events.${button}ButtonClicked()' id='${button}Button' />`;
         }
         let closingTags = "</div>";
         return title + buttons + closingTags;
     }
     //Function to generates fields
     function genFields(fields, type) {
+        
         let fieldsText = "<hr><form id='popupForm'>";
 
         if (type === undefined || type == "main") {
@@ -160,20 +152,21 @@ function Popup(bundle) {
 
                 //Check that the field is not on the global hide list
                 if (! options.hide.global.includes(name)) {
-                    fieldsText += genField(titleOverride(name),'{' + name + '}');
+                    fieldsText += genField(name, titleOverride(name),'{' + name + '}');
                 }
             }
             //Helper function to generate a individual field
-            function genField(label, value) {
+            function genField(key, label, value) {
                 return `<div class='popupField'><label class='popupLabel'>${label}:</label> 
-                <textarea class='popupTextarea' readonly>${value}</textarea></div>`;
-                //"<input class='popupField' type='text' value='" + value + "' readonly></input>";
+                <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)' 
+                readonly >${value}</textarea></div>`;
             }
         } else if (type == "related") {
             for (let key in fields) {
                 if (! options.hide.global.includes(key)) {
-                    fieldsText += `<div class='popupField'><label class='popupLabel'>${key}:</label> 
-                    <textarea class='popupTextarea' readonly>${fields[key]}</textarea></div>`
+                    fieldsText += `<div class='popupField'><label class='popupLabel'>${titleOverride(key)}:</label> 
+                    <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)'
+                     readonly >${fields[key]}</textarea></div>`
                 }
             }
         }
@@ -221,7 +214,7 @@ function Popup(bundle) {
             }
             
             let relatedText = "";
-
+            
             let relatedQuery = L.esri.Related.query(dataLayer);
             let relationshipsPromise = relationships.map((relation, index) => {
                 return new Promise((resolve, reject) => {
@@ -231,7 +224,11 @@ function Popup(bundle) {
                     .returnZ(false)
                     .run(function(err, res, raw) {
                         res.relation = relation;
-                        resolve(res);                    
+                        if (err !== undefined) {
+                            console.err(err);
+                            reject(err);
+                        }
+                        resolve(res);
                     });
                 });
             });
@@ -243,6 +240,9 @@ function Popup(bundle) {
                         relatedText += genRelatedField(res);
                     }
                 });
+                if (relatedText == "") {
+                    outerResolve("");
+                }
                 outerResolve( `<hr><div id='relatedLinks'> ${relatedText} </div>`);
             });
 
@@ -250,7 +250,8 @@ function Popup(bundle) {
     }
     function titleOverride(name) {
         for (let old in options.titleOverrides) {
-            name = name.replace(old, options.titleOverrides[old]);
+            //name = name.replace(old, options.titleOverrides[old]);
+            name = name.split(old).join(options.titleOverrides[old]);
         }
         return name;
     }
@@ -258,15 +259,17 @@ function Popup(bundle) {
     // Button/ Event Handlers
     function openRelatedPopup(button, relatedName) {
         let id = $(button).prev().find(":selected").attr("value");
-        let targetLayer;
+        console.log(relatedName);
+        console.log(relationships);
         let fields;
+        let targetFeature;
 
         relationshipsData.map((data, index) => {
             if (data.relation.name == relatedName) {
-                targetLayer = data.features;
+                targetFeature = data.features;
             }
         });
-        targetLayer.map((entity, index) => {
+        targetFeature.map((entity, index) => {
             if (entity.id == id) {
                 fields = entity.properties;
             }
@@ -285,32 +288,139 @@ function Popup(bundle) {
         let popupText = toolbarText + fieldsText;        
 
         currentFeature.setPopupContent(popupText);
+        
+        if (popups.length == 2) {
+            popups.pop();
+        }
+        pageIndex++;
+        currentRelatedFeature = {
+            feature: {
+                properties: fields,
+            },
+            options: {
+                url: ""
+            }
+        }
+        
+        popups[pageIndex] = popupText;        
         currentFeature.openPopup();
-      
-        $("#backButton").css("filter","invert(0)");
+        $(".popupTextarea").trigger("oninput");
+        $("#backButton").prop("disabled", false);
+    }
+
+    function resizeTextarea(context) {
+        context.style.height = "";
+        context.style.height = context.scrollHeight + "px";
     }
 
     function backButtonClicked() {
-        let oldPopup = popups.pop();
-        popups.push(sourceLayer.getPopup());
-
+        let oldPopup;
+        if (popups.length >= 2) {
+            oldPopup = popups[pageIndex - 1];
+        }
+        
         currentFeature.setPopupContent(oldPopup);
-
         currentFeature.openPopup();
+        pageIndex--;
 
-        $("#backButton").css("filter","invert(0.8)");
-        $("#backButton").css("filter","invert(0)");
+        $("#backButton").prop("disabled", true);
+        $("#forwardButton").prop("disabled", false);
     }
 
     function forwardButtonClicked() {
-        
+        let newPopup = popups[pageIndex + 1];
+
+        currentFeature.setPopupContent(newPopup);
+        currentFeature.openPopup();
+        pageIndex++;
+
+        $("#backButton").prop("disabled", false);
+        $("#forwardButton").prop("disabled", true);
     }
+
+    function editButtonClicked() {
+        editMode = true;
+        $("#editButton").addClass("activePopupButton");
+        $("#moveButton").prop("disabled", true);
+        $(".popupTextarea").prop("readonly", false);
+        editMoveMode();
+    }
+    function moveButtonClicked() {
+        moveMode = true;
+        $("#moveButton").addClass("activePopupButton");
+        $("#editButton").prop("disabled", true);
+        $(".leaflet-popup-content-wrapper").css("opacity","0.8");
+        editMoveMode();
+    }
+    function confirmButtonClicked() {
+        if (editMode) {
+            if (pageIndex == 0) { //On main popup
+                console.log(currentFeature);
+            }
+            else if (pageIndex == 1) { //On related popup
+                console.log(currentRelatedFeature);
+            }
+        }
+        else if (moveMode) {
+            if (pageIndex == 0) { //On main popup
+                console.log(currentFeature);
+            }
+            else if (pageIndex == 1) { //On related popup
+                console.log(currentRelatedFeature);
+            }
+        }
+        
+        resetButtons();
+    }
+    function cancelButtonClicked() {
+        if (confirm("Do you want to discard changes")) {
+            currentFeature.setPopupContent(popups[pageIndex]);
+
+            resetButtons();
+        }
+    }
+    function editMoveMode() {
+        $("#confirmButton").addClass("activePopupButton");
+        $("#cancelButton").addClass("activePopupButton");
+        $("#confirmButton").prop("disabled", false);
+        $("#cancelButton").prop("disabled", false);
+        $("#backButton").prop("disabled", true);
+        $("#forwardButton").prop("disabled", true);
+    }
+    function resetButtons() {
+        console.log(`pageIndex = ${pageIndex}`)
+        editMode = false;
+        moveMode = false;
+        $(".popupTextarea").prop("readonly", true);
+        $(".popupButtons").removeClass("activePopupButton");
+
+        if (pageIndex == 0 && popups.length >= 2) {
+            $("#forwardButton").prop("disabled", false);
+        }
+        if (pageIndex == 1) {
+            $("#backButton").prop("disabled", false);
+        }
+
+
+        $(".leaflet-popup-content-wrapper").css("opacity","1.0");
+        $("#editButton").prop("disabled", false);
+        $("#moveButton").prop("disabled", false);
+        $("#confirmButton").prop("disabled", true);
+        $("#cancelButton").prop("disabled", true);
+    }
+
 
     //Defines global functions that are called by buttons/ event
     window.Popup.events = {
         openRelatedPopup: openRelatedPopup,
+        resizeTextarea: resizeTextarea,
         backButtonClicked: backButtonClicked,
-        forwardButtonClicked: forwardButtonClicked
+        forwardButtonClicked: forwardButtonClicked,
+        editButtonClicked: editButtonClicked,
+        moveButtonClicked: moveButtonClicked,
+        confirmButtonClicked: confirmButtonClicked,
+        cancelButtonClicked: cancelButtonClicked
+
     }
     //Publically accessable members and methods.
     return {
@@ -321,7 +431,7 @@ function Popup(bundle) {
             options.titleOverrides = title;
         },
         setGlobalHide: (hideList) => {
-            options.hide.global = hideList;
+            options.hide.global = options.hide.global.concat(hideList);
         },
         setRelatedKeyOverride: (overrides) => {
             options.relatedKeyOverrides = overrides;
