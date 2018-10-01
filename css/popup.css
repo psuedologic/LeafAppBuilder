@@ -49,6 +49,42 @@ label.relatedLabel, select.relatedSelect, input.relatedButton {
 
 }
 
+
+#crosshairs {
+    position: absolute; 
+    top: 0;
+    bottom: 0;
+    left: 0; 
+    right: 0; 
+    width: 64px;
+    margin: auto;
+    display: inline-block;
+    
+    z-index: 500;
+}
+
+#crosshairWrapper {
+    position: absolute; 
+    display: none; 
+    left: 50%;
+    top: 50%;
+
+    margin-left: -45px;
+    margin-top: -35px;
+    z-index: 10000;
+}
+#crosshair {
+    width: 40px;
+    pointer-events:none;
+}
+.crosshairButtons {
+    width: 25px;
+    margin-bottom: 30px;
+    border-radius: 10px;
+    background-color: rgb(134, 188, 230);
+    border-width: 2px;
+}
+
 ::-webkit-scrollbar {
     width: 0px;  /* remove scrollbar space */
     background: transparent;  /* optional: just make scrollbar invisible */

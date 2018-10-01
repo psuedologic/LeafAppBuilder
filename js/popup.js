@@ -16,6 +16,7 @@ function Popup(bundle) {
     //Member Variables 
     var popups = [];
     var currentFeature;
+  
     var currentRelatedFeature;
     var sourceLayer = bundle.featureLayer;
     var url = bundle.featureLayer.options.url;
@@ -24,10 +25,12 @@ function Popup(bundle) {
         options.hide.global = ["GlobalID"]
     var relationships = [];
     var relationshipsData = [];
+    var relationshipsConn = [];
     var ready = false;
     var pageIndex = -1;
     var editMode = false;
     var moveMode = false;
+    var popupEvent;
 
     var mainFields;
   
@@ -36,9 +39,36 @@ function Popup(bundle) {
     (function () {
         getFields().then(() => {
             ready = true;
-            getRelationshipFields();
+            getRelationshipConns();
             dataLayer.on("click", popup);
         });
+
+        
+        // Create Crosshair
+        let div = document.createElement('div');
+        div.setAttribute("id","crosshairWrapper");
+        //div.style.cssText = 'position:absolute; display: none; left: 50%; top: 50%; height: 40px; margin: -20px; z-index:10000;'
+
+        let cancelButton = document.createElement('img');
+        cancelButton.setAttribute("onclick","cancelMove()");
+        cancelButton.setAttribute("src","images/cancel.png");
+        cancelButton.setAttribute("class","crosshairButtons");
+
+        let crosshair = document.createElement('img');
+        crosshair.setAttribute("id","crosshair");
+        crosshair.setAttribute("src","images/crosshair.png");
+        //crosshair.style.cssText = ''
+
+        let confirmButton = document.createElement('img');
+        confirmButton.setAttribute("onclick","confirmMove()");
+        confirmButton.setAttribute("src","images/confirm.png");
+        confirmButton.setAttribute("class","crosshairButtons");
+
+        
+        document.body.appendChild(div);
+        div.appendChild(cancelButton);
+        div.appendChild(crosshair);
+        div.appendChild(confirmButton);
 
         //Assign defaults
         if (options.allowEdits === undefined) {
@@ -55,9 +85,9 @@ function Popup(bundle) {
             $.ajax({url: url + "/?f=json", method: "GET"})
             .done((data) => {
                 mainFields = data.fields;
-                 relationships = data.relationships;
+                relationships = data.relationships;
                 // if (relationships.length > 0 ) {
-                //     //getRelationshipFields() 
+                //     getRelationshipConns() 
                 // }
                 resolve();
             }).fail((error) => {
@@ -68,12 +98,21 @@ function Popup(bundle) {
     }
 
     //Grab all relationships for the current feature layer
-    function getRelationshipFields() {
+    function getRelationshipConns() {
+        let baseUrl = sourceLayer.options.url.slice(0, -2);
         
+        relationships.map((relation, index) => {
+            let featureClass = L.esri.featureLayer({
+                url: sourceLayer.options.url.slice(0, -2) + index
+            });
+            relationshipsConn.push(featureClass);
+        });
+        window.relationshipsConn = relationshipsConn;
     }
 
     //Generate a popup in response to an event
     function popup(event) {
+        popupEvent = event;
         pageIndex = -1;
         popups = [];
         
@@ -259,14 +298,16 @@ function Popup(bundle) {
     // Button/ Event Handlers
     function openRelatedPopup(button, relatedName) {
         let id = $(button).prev().find(":selected").attr("value");
-        console.log(relatedName);
+        // console.log(relatedName);
         console.log(relationships);
         let fields;
         let targetFeature;
+        let targetId;
 
         relationshipsData.map((data, index) => {
             if (data.relation.name == relatedName) {
                 targetFeature = data.features;
+                targetId = data.relation.relatedTableId;
             }
         });
         targetFeature.map((entity, index) => {
@@ -279,7 +320,7 @@ function Popup(bundle) {
             title = options.relatedTitle + ": " + fields[options.relatedKey];
         }
         else {
-            title = "OBJECTID: {OBJECTID}"
+            title = "ObjectID: {OBJECTID}"
         }
 
         let toolbarText = genToolbar(title);
@@ -298,7 +339,7 @@ function Popup(bundle) {
                 properties: fields,
             },
             options: {
-                url: ""
+                url: sourceLayer.options.url.slice(0, -2) + targetId
             }
         }
         
@@ -306,6 +347,9 @@ function Popup(bundle) {
         currentFeature.openPopup();
         $(".popupTextarea").trigger("oninput");
         $("#backButton").prop("disabled", false);
+        if (!options.relatedAllowMove) {
+            $("#moveButton").prop("disabled", true);
+        }
     }
 
     function resizeTextarea(context) {
@@ -347,26 +391,86 @@ function Popup(bundle) {
     }
     function moveButtonClicked() {
         moveMode = true;
+        let coords = currentFeature.feature.geometry.coordinates;
+        currentFeature._map.setView([coords[1], coords[0]]);
+        $("#crosshairWrapper").show();
+
         $("#moveButton").addClass("activePopupButton");
         $("#editButton").prop("disabled", true);
-        $(".leaflet-popup-content-wrapper").css("opacity","0.8");
+        $(".leaflet-popup-content-wrapper").css("opacity","0.2");
         editMoveMode();
     }
+    function pushEdits(url, edits) {
+        console.log(edits);
+        return new Promise(function(resolve, reject) {
+            //$.ajax({
+            $.post({
+                url: url,
+                dataType: "json",
+                data: {"f":"json",
+                    "updates": JSON.stringify(edits)}
+            })
+            .done((data) => {
+                resolve(data);       
+            }).fail((error) => {
+                console.error("Unable to push updates to DB")
+                reject(error);
+            });
+        });
+
+
+    }
     function confirmButtonClicked() {
+        function getTextareas(data, objectId) {
+            let form = $("#popupForm")[0]
+            let feature = 
+            [{
+                "attributes": {
+                        "OBJECTID": objectId
+                    },
+            }];
+
+            for (let i = 0; i < form.children.length; i++) {
+                let field = form.children[i].children[1].getAttribute("data-field");
+                let value = form.children[i].children[1].value;
+
+                if (value == "null") {
+                    value = ""
+                }
+                if (field != "OBJECTID") {
+                    feature[0].attributes[field] = value
+                    data[field] = value;
+                }
+            }
+            
+            return feature;
+        }
         if (editMode) {
             if (pageIndex == 0) { //On main popup
-                console.log(currentFeature);
+                let url = currentFeature.options.url + "applyEdits/";
+
+                getTextareas(currentFeature.feature.properties, currentFeature.feature.id)
+                sourceLayer.updateFeature(currentFeature.toGeoJSON(), (err, res) => {
+                    console.log(err, res);
+                    popup(popupEvent);
+                });
             }
             else if (pageIndex == 1) { //On related popup
-                console.log(currentRelatedFeature);
+                let url = currentRelatedFeature.options.url + "/applyEdits/";;
+                let objectId = currentRelatedFeature.feature.properties.OBJECTID;
+
+                let feature = getTextareas({}, objectId);
+                pushEdits(url, feature);
             }
         }
         else if (moveMode) {
             if (pageIndex == 0) { //On main popup
                 console.log(currentFeature);
+                
+
             }
             else if (pageIndex == 1) { //On related popup
-                console.log(currentRelatedFeature);
+                console.error("Unsupported operation: moving related record unimplemented");
             }
         }
         
@@ -388,7 +492,6 @@ function Popup(bundle) {
         $("#forwardButton").prop("disabled", true);
     }
     function resetButtons() {
-        console.log(`pageIndex = ${pageIndex}`)
         editMode = false;
         moveMode = false;
         $(".popupTextarea").prop("readonly", true);
@@ -396,15 +499,18 @@ function Popup(bundle) {
 
         if (pageIndex == 0 && popups.length >= 2) {
             $("#forwardButton").prop("disabled", false);
+            $("#moveButton").prop("disabled", false);
         }
         if (pageIndex == 1) {
             $("#backButton").prop("disabled", false);
+            if (!options.relatedAllowMove) {
+                $("#moveButton").prop("disabled", true);
+            }
         }
 
-
+        $("#crosshairWrapper").hide();
         $(".leaflet-popup-content-wrapper").css("opacity","1.0");
         $("#editButton").prop("disabled", false);
-        $("#moveButton").prop("disabled", false);
         $("#confirmButton").prop("disabled", true);
         $("#cancelButton").prop("disabled", true);
     }
@@ -439,107 +545,3 @@ function Popup(bundle) {
     }
 }
 
-
-/*
-
-
-function openRelatedPopup(oid, relatedId) {
-    console.log(oid, relatedId);
-}
-function editPopupFields() {
-    editMode = true;
-    currentPopup = $("#popupForm").clone();
-
-    let coord = currentFeature.feature.geometry.coordinates;
-    map.setView([coord[1], coord[0]]);
-
-    // $("#crosshairs").css("display","block");
-    //$("#crosshairs").show();
-    $(".popupField").css("border","2px, inset black").prop("readonly",false);
-    $(".popupButtons").show();
-    $("#editButton").hide();
-}
-function editLocation() {
-    $("#crosshairs").show();
-}
-function disablePopupFields() {
-    $("#popupForm").replaceWith(currentPopup);
-    stopEditMode();
-}
-function confirmPopupFields() {
-    // STUB UPDATE DB
-    stopEditMode();
-}
-function stopEditMode() {
-    editMode = false;
-    $("#crosshairs").hide();
-    $(".popupField").css("border","").prop("readonly",true);
-    $(".popupButtons").hide();
-    $("#editButton").show();
-}
-
-function generateSitePopup(event, currentFeature) {
-    //let dataLayer = event.data;
-    //console.log("event: " + event + " | datalayer: " + dataLayer);
-
-    //currentFeature = dataLayer.getFeature(event.layer.feature.id);
-    let currentId = event.layer.feature.id;
-    
-    //helper functions for generating label / inputs
-    function genField(label, value) {
-        return "<label class='popupLabel'>" + label + ":</label>" + 
-        "<input class='popupField' type='text' ondblclick='editPopupFields()' value='" + value + "' readonly></input><br />";
-    }
-
-    // let popup = "<div id='popupToolbar'><span>SITE: {Site}</span>" +
-    //             "<input class='popupButtons' type='image' width='24px' src='images/edit.png' onclick='editPopupFields()' id='editButton' />" +
-    //             "<input class='popupButtons' type='image' width='24px' src='images/edit_location.png' onclick='editLocation()' id='editButton' />" +
-    //             "<input class='popupButtons' type='image' width='24px' src='images/check.png' onclick='confirmPopupFields()' id='checkButton' />" +
-    //             "<input class='popupButtons' type='image' width='24px' src='images/close.png' onclick='disablePopupFields()' id='closeButton' /></div>" +
-            
-    let popup = "<div id='popupToolbar'><span>SITE: {Site}</span>" +
-                "<input class='popupButtons' type='image' width='24px' src='images/edit.png' onclick='editPopupFields()' id='editButton' />" +
-                "<input class='popupButtons' type='image' width='24px' src='images/edit_location.png' onclick='editLocation()' id='editButton' />" +
-                "<input class='popupButtons' type='image' width='24px' src='images/check.png' onclick='confirmPopupFields()' id='checkButton' />" +
-                "<input class='popupButtons' type='image' width='24px' src='images/close.png' onclick='disablePopupFields()' id='closeButton' /></div>" +
-
-            "<hr><form id='popupForm'>" +
-            genField('Description','{Description}') +
-            genField('Location','{Location}') +
-            genField('Type','{Equipment_Type}') +
-            genField('Notes','{Notes}') +
-            "</form><hr>" +
-            "Related Equipment:<br />";
-
-    //loop through each related record and query
-    currentFeature.bindPopup(function(layer) {
-        return L.Util.template(popup, layer.feature.properties);
-    });
-
-    currentFeature.openPopup();
-    relationships.forEach(function(relation) {
-        relatedQuery.objectIds(event.layer.feature.properties.OBJECTID)
-        .relationshipId("" + relation.id)
-        .returnGeometry(false)
-        .returnZ(false)
-        .run(function(err, res, raw) {
-            try {
-                if ( res.features.length > 0) {
-                    popup +=
-                    "<label class='relatedLabel'>" + relation.name + ": "
-                        + res.features.length + "</label>" +
-                    "<input type='button' value='Open' class='relatedButton' " +
-                        "onclick='openRelatedPopup(" + currentId + ',' + relation.id + ")" +
-                    "'></input><br />";
-                }
-                currentFeature.bindPopup(function(layer) {
-                    return L.Util.template(popup, layer.feature.properties);
-                });         
-                
-            } catch (err) {
-                console.error(err);
-            }
-        }); 
-    });
-}
-*/
