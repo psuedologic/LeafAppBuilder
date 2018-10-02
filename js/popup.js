@@ -50,7 +50,7 @@ function Popup(bundle) {
         //div.style.cssText = 'position:absolute; display: none; left: 50%; top: 50%; height: 40px; margin: -20px; z-index:10000;'
 
         let cancelButton = document.createElement('img');
-        cancelButton.setAttribute("onclick","cancelMove()");
+        cancelButton.setAttribute("onclick","Popup.events.cancelButtonClicked()");
         cancelButton.setAttribute("src","images/cancel.png");
         cancelButton.setAttribute("class","crosshairButtons");
 
@@ -60,11 +60,10 @@ function Popup(bundle) {
         //crosshair.style.cssText = ''
 
         let confirmButton = document.createElement('img');
-        confirmButton.setAttribute("onclick","confirmMove()");
+        confirmButton.setAttribute("onclick","Popup.events.confirmButtonClicked()");
         confirmButton.setAttribute("src","images/confirm.png");
         confirmButton.setAttribute("class","crosshairButtons");
 
-        
         document.body.appendChild(div);
         div.appendChild(cancelButton);
         div.appendChild(crosshair);
@@ -392,6 +391,7 @@ function Popup(bundle) {
     function moveButtonClicked() {
         moveMode = true;
         let coords = currentFeature.feature.geometry.coordinates;
+        console.log(`Coordinate: ${coords}`);
         currentFeature._map.setView([coords[1], coords[0]]);
         $("#crosshairWrapper").show();
 
@@ -465,8 +465,21 @@ function Popup(bundle) {
         }
         else if (moveMode) {
             if (pageIndex == 0) { //On main popup
-                console.log(currentFeature);
                 
+                //console.log(currentFeature);
+                let coords = sourceLayer._map.getCenter();
+                //currentFeature.feature.geometry.coordinates = [coords.lng, coords.lat];
+
+                let updatedFeature = currentFeature.toGeoJSON()
+
+                updatedFeature.geometry.coordinates = [coords.lng, coords.lat];
+
+                sourceLayer.updateFeature(updatedFeature, (err, res) => {
+                    console.log(err, res);
+                    popup(popupEvent);
+                });
+                console.log(currentFeature);
+
 
             }
             else if (pageIndex == 1) { //On related popup
@@ -525,7 +538,7 @@ function Popup(bundle) {
         editButtonClicked: editButtonClicked,
         moveButtonClicked: moveButtonClicked,
         confirmButtonClicked: confirmButtonClicked,
-        cancelButtonClicked: cancelButtonClicked
+        cancelButtonClicked: cancelButtonClicked,
 
     }
     //Publically accessable members and methods.
