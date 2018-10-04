@@ -288,7 +288,6 @@ function Popup(bundle) {
     }
     function titleOverride(name) {
         for (let old in options.titleOverrides) {
-            //name = name.replace(old, options.titleOverrides[old]);
             name = name.split(old).join(options.titleOverrides[old]);
         }
         return name;
@@ -297,14 +296,14 @@ function Popup(bundle) {
     // Button/ Event Handlers
     function openRelatedPopup(button, relatedName) {
         let id = $(button).prev().find(":selected").attr("value");
-        // console.log(relatedName);
-        console.log(relationships);
         let fields;
         let targetFeature;
+        let targetFeatureName;
         let targetId;
 
         relationshipsData.map((data, index) => {
             if (data.relation.name == relatedName) {
+                targetFeatureName = data.relation.name;
                 targetFeature = data.features;
                 targetId = data.relation.relatedTableId;
             }
@@ -315,7 +314,16 @@ function Popup(bundle) {
             }
         });
         let title;
-        if (options.relatedTitle !== undefined && options.relatedKey !== undefined) {
+        let titleFound = false;
+        console.log(targetFeature);
+
+        if (options.relatedTitleOverride !== undefined && 
+            options.relatedTitleOverride[targetFeatureName] !== undefined) {
+                title = `${options.relatedTitleOverride[targetFeatureName]}: 
+                         ${fields[options.relatedTitleOverride[targetFeatureName]]}`
+                titleFound = true;
+        }
+        else if (!titleFound && options.relatedTitle !== undefined && options.relatedKey !== undefined) {
             title = options.relatedTitle + ": " + fields[options.relatedKey];
         }
         else {
@@ -391,7 +399,6 @@ function Popup(bundle) {
     function moveButtonClicked() {
         moveMode = true;
         let coords = currentFeature.feature.geometry.coordinates;
-        console.log(`Coordinate: ${coords}`);
         currentFeature._map.setView([coords[1], coords[0]]);
         $("#crosshairWrapper").show();
 
@@ -401,7 +408,6 @@ function Popup(bundle) {
         editMoveMode();
     }
     function pushEdits(url, edits) {
-        console.log(edits);
         return new Promise(function(resolve, reject) {
             //$.ajax({
             $.post({
@@ -478,8 +484,6 @@ function Popup(bundle) {
                     console.log(err, res);
                     popup(popupEvent);
                 });
-                console.log(currentFeature);
-
 
             }
             else if (pageIndex == 1) { //On related popup
@@ -554,6 +558,9 @@ function Popup(bundle) {
         },
         setRelatedKeyOverride: (overrides) => {
             options.relatedKeyOverrides = overrides;
+        },
+        setRelatedTitleOverride: (overrides) => {
+            options.relatedTitleOverride = overrides;
         }
     }
 }
