@@ -7,10 +7,14 @@ input.popupButtons {
     width: 24px;
     margin: 1px;
 }
-input.popupButtons:enabled {
+input.attachButtons {
+    width: 20px;
+    margin: 0px;
+}
+input.popupButtons:enabled, input.attachButtons:enabled {
     filter: invert(0);
 }
-input.popupButtons:disabled {
+input.popupButtons:disabled, input.attachButtons:disabled {
     filter: invert(0.8);
 }
 
@@ -18,7 +22,7 @@ input.activePopupButton {
     background-color:rgb(162, 215, 255);
 }
 
-#PopupToolbar span, label.popupLabel, label.relatedLabel {
+#PopupToolbar span, label.popupLabel, label.relatedLabel, label#attachmentLabel {
     font-weight: 600;
 }
 
@@ -28,7 +32,7 @@ label.relatedLabel, select.relatedSelect, input.relatedButton {
     margin-bottom: 2px;
 }
 
-.popupLabel {
+.popupLabel, #attachmentLabel {
     display: inline-block;
     vertical-align: top;
     width: 110px;
@@ -47,6 +51,10 @@ label.relatedLabel, select.relatedSelect, input.relatedButton {
     background-color: rgb(253, 253, 253);
     border-radius: 4px; */
 
+}
+
+#attachmentControls {
+    display: inline-block;
 }
 
 
@@ -107,20 +115,25 @@ textarea::-webkit-scrollbar-thumb {
     float: left;
     clear: left;
 }
-.relatedSelect {
+.relatedSelect, #attachmentSelect {
     width: 130px;
     padding: 2px;
     background-color: rgb(253, 253, 253);
     border-radius: 4px;
 }
-.relatedButton {
+#attachmentSelect {
+    width: 115px;
+}
+.relatedButtons {
     margin: 1px;
+    width: 24px;
+    /* margin: 1px;
     padding: 3px;
     border-radius: 5px;
     background-color: rgb(162, 215, 255);
     -webkit-appearance: none;
     -moz-appearance: none;
-    appearance: none; 
+    appearance: none;  */
 }
 
 .leaflet-popup-content-wrapper {

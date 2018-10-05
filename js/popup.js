@@ -114,17 +114,24 @@ function Popup(bundle) {
         popupEvent = event;
         pageIndex = -1;
         popups = [];
+        let generated = [];
         
         currentFeature = sourceLayer.getFeature(event.layer.feature.id);
+        console.log(currentFeature);
         currentFeature.unbindPopup();
         let currentId = event.layer.feature.id;
 
-        let toolbarText = genToolbar(options.titleOverride);
-        let fieldsText = genFields(mainFields);
-        let relatedText;
-        genRelated(currentId).then(relatedText => {
-            
-            let popupText = toolbarText + fieldsText + relatedText;
+        generated.push( genToolbar(options.titleOverride));
+        generated.push( genFields(mainFields));
+        generated.push( genAttachments(currentId, currentFeature.options.url));
+        generated.push( genRelated(currentId));
+        
+        //Once all html is generated for the popup, then build and deploy the popup.
+        Promise.all(generated).then((popupComponents) => {
+            let popupText = "";
+            popupComponents.map((component, index) => {
+                popupText += component;
+            });
 
             currentFeature.bindPopup(function(layer) {
                 let popup = L.Util.template(popupText, layer.feature.properties);
@@ -133,10 +140,13 @@ function Popup(bundle) {
                 
                 return popup;
             });
+
             currentFeature.openPopup();
             resetButtons();
-            $(".popupTextarea").trigger("oninput");
-        });
+
+            $(".popupTextarea").trigger("oninput");            
+        
+        }).catch(console.log.bind(console));
     }
 
     //Create the toolbar portion of the popup, Consisting of title and toolbar
@@ -153,31 +163,51 @@ function Popup(bundle) {
 
         //Create Buttons
         let buttons = "";
-        buttons += genButton("back", "disabled");
-        buttons += genButton("forward", "disabled");
+
+        buttons += genButton({"className":"popup", 
+                              "button":"back", 
+                              "state":"disabled"});
+        buttons += genButton({"className":"popup", 
+                              "button":"forward", 
+                              "state":"disabled"});
         if (options.allowEdits) {
-            buttons += genButton("edit");
+            buttons += genButton({"className":"popup", 
+                                "button":"edit"});
         }
         if (options.allowMove) {
-            buttons += genButton("move");
+            buttons += genButton({"className":"popup", 
+                                "button":"move"});
         }
         if (options.allowEdits || options.allowMove) {
-            buttons += genButton("confirm", "disabled");
-            buttons += genButton("cancel", "disabled");
+            buttons += genButton({"className":"popup", 
+                                "button":"confirm", 
+                                "state":"disabled"});
+            buttons += genButton({"className":"popup", 
+                                "button":"cancel", 
+                                "state":"disabled"});
         }
 
-        //Helper function to make buttons
-        function genButton(button, state) {
-            if (state === undefined) {
-                state = "";
-            }
-            let buttonFormatted = button.charAt(0).toUpperCase() + button.slice(1);
-            return `<input class='popupButtons' title="${buttonFormatted} Button" 
-                     type='image' src='images/${button}.png' ${state} 
-                     onclick='Popup.events.${button}ButtonClicked()' id='${button}Button' />`;
-        }
+        
         let closingTags = "</div>";
-        return title + buttons + closingTags;
+        return Promise.resolve(title + buttons + closingTags);
+    }
+    //Helper function to make buttons
+    function genButton(options) {
+        if (options.className === undefined) {
+            options.className = "unknown";
+        }
+        if (options.state === undefined) {
+            options.state = "";
+        }
+        let functionCall = `onclick='Popup.events.${options.button}ButtonClicked()'`;
+        if (options.onClick !== undefined) {
+            functionCall = options.onClick;
+        }
+        let buttonFormatted = options.button.charAt(0).toUpperCase() + options.button.slice(1);
+
+        return `<input class='${options.className}Buttons' title="${buttonFormatted} Button" 
+                 type='image' src='images/${options.button}.png' ${options.state} 
+                 ${functionCall} id='${options.button}Button' />`;
     }
     //Function to generates fields
     function genFields(fields, type) {
@@ -211,11 +241,95 @@ function Popup(bundle) {
         fieldsText += "</form>";
             return fieldsText;
     }
+    //Function to generate the attachments
+    function genAttachments(id, baseUrl) {
+        return new Promise((outerResolve, outerReject) => {
+            let attachmentText = "";
+            let url = `${baseUrl}${id}/attachments`;
+            let attachmentsPromise = (() => {
+                return new Promise((resolve, reject) => {
+                    $.post( {
+                        url: url,
+                        dataType: "json",
+                        data: { "f":"json" }
+                    }).done((data) => {
+                        resolve(data.attachmentInfos);
+                    }).fail((error) => {
+                        console.error("Unable to pull attachments");
+                        reject(error);
+                    });
+                });
+            })()
+
+            attachmentsPromise.then((attachments) => {
+                let options = "";
+                if (attachments.length > 0) {
+                    console.log(attachments);
+                    options = genOptions(attachments);
+
+                } else {
+                    console.log("no attachments");
+                    
+                }
+                attachmentText =    
+                    `<hr>
+                     <div id="attachmentsDivs">
+                        <label id="attachmentLabel">Attachments:</label>
+                        <select id="attachmentSelect">${options}</select>
+                        <div id="attachmentControls">
+                            ${genButton({"className":"attach", 
+                                        "button":"openNew", 
+                                        "state":"disabled"})}
+                            ${genButton({"className":"attach", 
+                                        "button":"add",
+                                        "state":"disabled"})}
+                            ${genButton({"className":"attach", 
+                                        "button":"delete",
+                                        "state":"disabled"})}
+                        </div>
+                    </div>`;
+                    /*
+                    <input type='button' value='Open' id='attachmentButton'</br>
+                                onclick="Popup.events.openRelatedAttachment(this,'${""/*res.relation.name}')">
+                            </input><br>*/
+                    
+                outerResolve(attachmentText);
+            });
+
+            function genOptions(attachments) {
+                let attachmentText = "";
+                attachments.map((attach, index) => {
+                    attachmentText += `<option value='${attach.id}'>${attach.name}</option>`
+                });
+                return attachmentText;
+            }
+        });
+    }
     //Function to generate related table links
     function genRelated(currentId) {
         return new Promise((outerResolve, outerReject) => {
-            //Generates a related table link based on response from get request.
-            function genRelatedField(res) { //lateName, id) {
+            let relatedText = "";
+            let relatedQuery = L.esri.Related.query(dataLayer);
+            
+            let relationshipsPromise = relationships.map((relation, index) => {
+                return new Promise((resolve, reject) => {
+                relatedQuery.objectIds(currentId)
+                    .relationshipId("" + relation.id)
+                    .returnGeometry(false)
+                    .returnZ(false)
+                    .run(function(err, res, raw) {
+                        res.relation = relation;
+                        if (err !== undefined) {
+                            console.err(err);
+                            reject(err);
+                        }
+                        resolve(res);
+                    });
+                });
+            });
+
+             //Generates a related table link based on response from get request.
+             function genRelatedField(res) { //lateName, id) {
                 let name = res.relation.name;
                 name = name.split(".").slice(2).join(".");
                 name = titleOverride(name);
@@ -225,9 +339,13 @@ function Popup(bundle) {
                 let text = 
                    `<label class='relatedLabel'> ${name}:  </label>
                     <select class='relatedSelect'>${relatedOptions}</select>
-                    <input type='button' value='Go' class='relatedButton'
+                    ${genButton({"className":"related", 
+                                "button":"open",
+                                "onClick":`onclick="(Popup.events.openRelatedPopup(this,'${res.relation.name}'))"`})}
+                    `;
+                    /*<input type='button' value='Go' class='relatedButton'
                         onclick="Popup.events.openRelatedPopup(this,'${res.relation.name}')">
-                    </input><br>`;
+                    </input><br>`*/
 
                 return text;
             }
@@ -250,26 +368,6 @@ function Popup(bundle) {
                 });
                 return relatedOptions;
             }
-            
-            let relatedText = "";
-            
-            let relatedQuery = L.esri.Related.query(dataLayer);
-            let relationshipsPromise = relationships.map((relation, index) => {
-                return new Promise((resolve, reject) => {
-                relatedQuery.objectIds(currentId)
-                    .relationshipId("" + relation.id)
-                    .returnGeometry(false)
-                    .returnZ(false)
-                    .run(function(err, res, raw) {
-                        res.relation = relation;
-                        if (err !== undefined) {
-                            console.err(err);
-                            reject(err);
-                        }
-                        resolve(res);
-                    });
-                });
-            });
             
             Promise.all(relationshipsPromise).then(responses => {
                 responses.forEach(res => {
@@ -315,7 +413,6 @@ function Popup(bundle) {
         });
         let title;
         let titleFound = false;
-        console.log(targetFeature);
 
         if (options.relatedTitleOverride !== undefined && 
             options.relatedTitleOverride[targetFeatureName] !== undefined) {
@@ -330,33 +427,44 @@ function Popup(bundle) {
             title = "ObjectID: {OBJECTID}"
         }
 
-        let toolbarText = genToolbar(title);
-        let fieldsText = genFields(fields, "related");
-
-        let popupText = toolbarText + fieldsText;        
-
-        currentFeature.setPopupContent(popupText);
+        let generated = [];
+        generated.push( genToolbar(title));
+        generated.push( genFields(fields, "related"));
         
-        if (popups.length == 2) {
-            popups.pop();
-        }
-        pageIndex++;
-        currentRelatedFeature = {
-            feature: {
-                properties: fields,
-            },
-            options: {
-                url: sourceLayer.options.url.slice(0, -2) + targetId
+        // let toolbarText = genToolbar(title);
+        // let fieldsText = genFields(fields, "related");
+        //let popupText = toolbarText + fieldsText;        
+
+        Promise.all(generated).then((popupComponents) => {
+            let popupText = "";
+            popupComponents.map((component, index) => {
+                popupText += component;
+            });
+            
+            currentFeature.setPopupContent(popupText);
+            
+            if (popups.length == 2) {
+                popups.pop();
             }
-        }
-        
-        popups[pageIndex] = popupText;        
-        currentFeature.openPopup();
-        $(".popupTextarea").trigger("oninput");
-        $("#backButton").prop("disabled", false);
-        if (!options.relatedAllowMove) {
-            $("#moveButton").prop("disabled", true);
-        }
+            pageIndex++;
+            currentRelatedFeature = {
+                feature: {
+                    properties: fields,
+                },
+                options: {
+                    url: sourceLayer.options.url.slice(0, -2) + targetId
+                }
+            }
+            
+            popups[pageIndex] = popupText;        
+            currentFeature.openPopup();
+            $(".popupTextarea").trigger("oninput");
+            $("#backButton").prop("disabled", false);
+            if (!options.relatedAllowMove) {
+                $("#moveButton").prop("disabled", true);
+            }
+
+        }).catch(console.log.bind(console));
     }
 
     function resizeTextarea(context) {
@@ -409,7 +517,6 @@ function Popup(bundle) {
     }
     function pushEdits(url, edits) {
         return new Promise(function(resolve, reject) {
-            //$.ajax({
             $.post({
                 url: url,
                 dataType: "json",
@@ -472,7 +579,6 @@ function Popup(bundle) {
         else if (moveMode) {
             if (pageIndex == 0) { //On main popup
                 
-                //console.log(currentFeature);
                 let coords = sourceLayer._map.getCenter();
                 //currentFeature.feature.geometry.coordinates = [coords.lng, coords.lat];
 
