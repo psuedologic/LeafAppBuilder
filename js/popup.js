@@ -98,8 +98,6 @@ function Popup(bundle) {
 
     //Grab all relationships for the current feature layer
     function getRelationshipConns() {
-        let baseUrl = sourceLayer.options.url.slice(0, -2);
-        
         relationships.map((relation, index) => {
             let featureClass = L.esri.featureLayer({
                 url: sourceLayer.options.url.slice(0, -2) + index
@@ -117,7 +115,7 @@ function Popup(bundle) {
         let generated = [];
         
         currentFeature = sourceLayer.getFeature(event.layer.feature.id);
-        console.log(currentFeature);
+        // console.log(currentFeature);
         currentFeature.unbindPopup();
         let currentId = event.layer.feature.id;
 
@@ -180,15 +178,15 @@ function Popup(bundle) {
         }
         if (options.allowEdits || options.allowMove) {
             buttons += genButton({"className":"popup", 
-                                "button":"confirm", 
+                                "button":"cancel", 
                                 "state":"disabled"});
             buttons += genButton({"className":"popup", 
-                                "button":"cancel", 
+                                "button":"confirm", 
                                 "state":"disabled"});
         }
 
         
-        let closingTags = "</div>";
+        let closingTags = "<hr></div>";
         return Promise.resolve(title + buttons + closingTags);
     }
     //Helper function to make buttons
@@ -203,16 +201,24 @@ function Popup(bundle) {
         if (options.onClick !== undefined) {
             functionCall = options.onClick;
         }
-        let buttonFormatted = options.button.charAt(0).toUpperCase() + options.button.slice(1);
+        let tooltip = options.tooltip;
+        if (tooltip === undefined) {
+            tooltip = options.button.charAt(0).toUpperCase() + options.button.slice(1);
+        }
 
-        return `<input class='${options.className}Buttons' title="${buttonFormatted} Button" 
+        let id = options.id;
+        if (id === undefined) {
+            id = options.button + "Button";
+        }
+
+        return `<input class='${options.className}Buttons' title="${tooltip}" 
                  type='image' src='images/${options.button}.png' ${options.state} 
-                 ${functionCall} id='${options.button}Button' />`;
+                 ${functionCall} id='${id}' />`;
     }
     //Function to generates fields
     function genFields(fields, type) {
         
-        let fieldsText = "<hr><form id='popupForm'>";
+        let fieldsText = "<form id='popupForm'>";
 
         if (type === undefined || type == "main") {
             for (let i=0; i < fields.length; i++) {
@@ -264,7 +270,6 @@ function Popup(bundle) {
             attachmentsPromise.then((attachments) => {
                 let options = "";
                 if (attachments.length > 0) {
-                    console.log(attachments);
                     options = genOptions(attachments);
 
                 } else {
@@ -272,34 +277,37 @@ function Popup(bundle) {
                     
                 }
                 attachmentText =    
-                    `<hr>
-                     <div id="attachmentsDivs">
+                    //`<hr id="attachmentDivider">
+                    `<div id="attachmentDiv">
                         <label id="attachmentLabel">Attachments:</label>
                         <select id="attachmentSelect">${options}</select>
                         <div id="attachmentControls">
                             ${genButton({"className":"attach", 
-                                        "button":"openNew", 
-                                        "state":"disabled"})}
-                            ${genButton({"className":"attach", 
-                                        "button":"add",
-                                        "state":"disabled"})}
-                            ${genButton({"className":"attach", 
+                                        "button":"openAttach", 
+                                        "tooltip":"Open Attachment"})}
+                            ${genButton({"className":"attach",
+                                        "id":"deleteAttachButton",
                                         "button":"delete",
-                                        "state":"disabled"})}
+                                        "state":"disabled",
+                                        "onClick":"onclick='Popup.events.deleteAttachButtonClicked()'"})}
+                            ${genButton({"className":"attach", 
+                                        "button":"addAttach",
+                                        "state":"disabled",
+                                        "tooltip":"Add Attachment"})}                            
                         </div>
                     </div>`;
                     /*
                     <input type='button' value='Open' id='attachmentButton'</br>
                                 onclick="Popup.events.openRelatedAttachment(this,'${""/*res.relation.name}')">
                             </input><br>*/
-                    
                 outerResolve(attachmentText);
             });
 
             function genOptions(attachments) {
                 let attachmentText = "";
                 attachments.map((attach, index) => {
-                    attachmentText += `<option value='${attach.id}'>${attach.name}</option>`
+                    attachmentText +=   `<option data-contentType='${attach.contentType}' 
+                                                 value='${attach.id}' >${attach.name}</option>`
                 });
                 return attachmentText;
             }
@@ -499,8 +507,10 @@ function Popup(bundle) {
 
     function editButtonClicked() {
         editMode = true;
-        $("#editButton").addClass("activePopupButton");
+        $(`#editButton, #addAttachButton, #deleteAttachButton`).addClass("highlightedButton");
+
         $("#moveButton").prop("disabled", true);
+        $("#addAttachButton, #deleteAttachButton").prop("disabled", false);
         $(".popupTextarea").prop("readonly", false);
         editMoveMode();
     }
@@ -510,7 +520,7 @@ function Popup(bundle) {
         currentFeature._map.setView([coords[1], coords[0]]);
         $("#crosshairWrapper").show();
 
-        $("#moveButton").addClass("activePopupButton");
+        $("#moveButton").addClass("highlightedButton");
         $("#editButton").prop("disabled", true);
         $(".leaflet-popup-content-wrapper").css("opacity","0.2");
         editMoveMode();
@@ -524,10 +534,22 @@ function Popup(bundle) {
                     "updates": JSON.stringify(edits)}
             })
             .done((data) => {
-                resolve(data);       
+                if (data.updateResults !== undefined && 
+                    data.updateResults[0] !== undefined &&
+                    data.updateResults[0].success) {
+                    showChange("#editButton", true);
+                    resolve(data);
+                }
+                else {
+                    showChange("#editButton", false);
+                    if (data.error !== undefined) {
+                        alert(`Error: ${data.error.code} - ${data.error.message}\n${data.error.details[0]}`);
+                    }
+                    console.error("Unable to push updates to DB - Unknown Error")
+                    reject(data);
+                }
             }).fail((error) => {
-                console.error("Unable to push updates to DB")
-                reject(error);
+                console.error("Unable to push updates to DB - Post Failed")
             });
         });
 
@@ -562,10 +584,18 @@ function Popup(bundle) {
             if (pageIndex == 0) { //On main popup
                 let url = currentFeature.options.url + "applyEdits/";
 
-                getTextareas(currentFeature.feature.properties, currentFeature.feature.id)
-                sourceLayer.updateFeature(currentFeature.toGeoJSON(), (err, res) => {
-                    console.log(err, res);
-                    popup(popupEvent);
+                getTextareas(currentFeature.feature.properties, currentFeature.feature.id);
+
+                sourceLayer.updateFeature(currentFeature.toGeoJSON(), (error, res) => {
+                    if (error !== undefined) {
+                        showChange("#editButton", false);
+                        popup(popupEvent);
+                        alert(`Error: ${error.code} - ${error.message}\n${error.details[0]}`);
+                    }
+                    else {
+                        showChange("#editButton", true);
+                        popup(popupEvent);
+                    }
                 });
             }
             else if (pageIndex == 1) { //On related popup
@@ -580,14 +610,10 @@ function Popup(bundle) {
             if (pageIndex == 0) { //On main popup
                 
                 let coords = sourceLayer._map.getCenter();
-                //currentFeature.feature.geometry.coordinates = [coords.lng, coords.lat];
-
                 let updatedFeature = currentFeature.toGeoJSON()
-
                 updatedFeature.geometry.coordinates = [coords.lng, coords.lat];
 
                 sourceLayer.updateFeature(updatedFeature, (err, res) => {
-                    console.log(err, res);
                     popup(popupEvent);
                 });
 
@@ -607,18 +633,15 @@ function Popup(bundle) {
         }
     }
     function editMoveMode() {
-        $("#confirmButton").addClass("activePopupButton");
-        $("#cancelButton").addClass("activePopupButton");
-        $("#confirmButton").prop("disabled", false);
-        $("#cancelButton").prop("disabled", false);
-        $("#backButton").prop("disabled", true);
-        $("#forwardButton").prop("disabled", true);
+        $("#confirmButton, #cancelButton").addClass("highlightedButton");
+        $("#confirmButton, #cancelButton").prop("disabled", false);
+        $("#backButton, #forwardButton").prop("disabled", true);
     }
     function resetButtons() {
         editMode = false;
         moveMode = false;
         $(".popupTextarea").prop("readonly", true);
-        $(".popupButtons").removeClass("activePopupButton");
+        
 
         if (pageIndex == 0 && popups.length >= 2) {
             $("#forwardButton").prop("disabled", false);
@@ -634,10 +657,97 @@ function Popup(bundle) {
         $("#crosshairWrapper").hide();
         $(".leaflet-popup-content-wrapper").css("opacity","1.0");
         $("#editButton").prop("disabled", false);
-        $("#confirmButton").prop("disabled", true);
-        $("#cancelButton").prop("disabled", true);
+        $(`#confirmButton, #cancelButton, 
+           #deleteAttachButton, #addAttachButton`).prop("disabled", true);
+        $(".popupButtons").removeClass("highlightedButton");
     }
+    function openAttachmentButtonClicked() {
+        let featureId = currentFeature.feature.id;
+        let selectedOption = $("#openAttachButton").parent().prev().find(":selected");
 
+        let attachId = selectedOption.attr("value");
+
+        let attachmentUrl = `${url}${featureId}/attachments/${attachId}`;
+        window.open(attachmentUrl, "_blank");
+    }
+    function addAttachButtonClicked() {
+        let attach = document.createElement('input');
+        attach.setAttribute("type","file");
+        attach.addEventListener("change", (event) => {
+            let file = attach.files[0];
+            let featureId = currentFeature.feature.id;
+            let uploadUrl = `${url}${featureId}/addAttachment`;
+            let formData = new FormData();
+            formData.append("f","json");
+            formData.append("attachment", file);
+
+            $.ajax( {
+                url: uploadUrl,
+                method: 'POST',
+                type: 'POST',
+                cache: false,
+                contentType: false,
+                processData: false,
+                data: formData,
+            }).done((res) => {
+                // console.log(res.addAttachmentResult.success)
+                // console.log("response");
+                // console.log(res);
+                if (res.addAttachmentResult.success) {
+                    showChange("#addAttachButton", true);
+                }
+            }).fail((error) => {
+                console.error("Unable to upload attachment");
+                showChange("#addAttachButton", false);
+            });
+        });
+        $(attach).trigger("click");
+    }
+    //Change the background of the incoming button to green temporarily to show success.
+    function deleteAttachButtonClicked() {
+        let selectedOption = $("#openAttachButton").parent().prev().find(":selected");
+
+        let deleteFlag = confirm(`Do you want to permanently delete '${selectedOption.html()}':`)
+        if (deleteFlag) {
+            let featureId = currentFeature.feature.id;
+            let deleteUrl = `${url}${featureId}/deleteAttachments`;
+            let attachmentId = selectedOption.attr("value");
+
+            $.post({
+                url: deleteUrl,
+                dataType: "json",
+                data: {"f":"json",
+                    "attachmentIds":attachmentId}
+            })
+            .done((data) => {
+                if (data.deleteAttachmentResults[0].success) {
+                    showChange("#deleteAttachButton", true);
+                }
+                else {
+                    showChange("#deleteAttachButton", false);
+                }
+            }).fail((error) => {
+                console.error("Unable to push updates to DB")
+            });
+           
+        }
+    }
+    //Change the background of the incoming button to green/red temporarily to show outcome.
+    function showChange(buttonId, success) {
+        let attachButton = $(buttonId);
+        let oldColor = attachButton.css("background-color");
+
+        if (success) {
+            attachButton.css("background-color", "rgb(68, 215, 155)");
+        }
+        else {
+            attachButton.css("background-color", "rgb(262, 15, 55)");
+        }
+        
+        setTimeout( () => {
+                attachButton.css("background-color", oldColor) 
+            }, 1000);
+    }
 
     //Defines global functions that are called by buttons/ event
     window.Popup.events = {
@@ -649,9 +759,11 @@ function Popup(bundle) {
         moveButtonClicked: moveButtonClicked,
         confirmButtonClicked: confirmButtonClicked,
         cancelButtonClicked: cancelButtonClicked,
-
+        openAttachButtonClicked: openAttachmentButtonClicked,
+        addAttachButtonClicked: addAttachButtonClicked,
+        deleteAttachButtonClicked: deleteAttachButtonClicked,
     }
-    //Publically accessable members and methods.
+    //Publically accessible members and methods.
     return {
         url: url,
         popup: popup,

@@ -18,12 +18,24 @@ input.popupButtons:disabled, input.attachButtons:disabled {
     filter: invert(0.8);
 }
 
-input.activePopupButton {
+input.highlightedButton {
     background-color:rgb(162, 215, 255);
 }
 
+/* #PopupToolbar {
+    position: absolute;
+    top: 12px;
+    height: 32px;
+}
+
+#popupForm {
+    margin-top: 56px;
+} */
+
 #PopupToolbar span, label.popupLabel, label.relatedLabel, label#attachmentLabel {
     font-weight: 600;
+    vertical-align: top;
+    margin: 4px;
 }
 
 label.relatedLabel, select.relatedSelect, input.relatedButton {
@@ -40,7 +52,7 @@ label.relatedLabel, select.relatedSelect, input.relatedButton {
 }
 
 .popupTextarea {
-    width: 145px;
+    width: 155px;
     background-color: rgb(253, 253, 253);
     border-radius: 4px;
     height: auto;
@@ -95,13 +107,14 @@ label.relatedLabel, select.relatedSelect, input.relatedButton {
 
 ::-webkit-scrollbar {
     width: 0px;  /* remove scrollbar space */
-    background: transparent;  /* optional: just make scrollbar invisible */
+    background: transparent;  
 }
-/* optional: show position indicator in red */
+/* optional: show position indicator in red
 textarea::-webkit-scrollbar-thumb {
     background: #FF0000;
-}
+} */
 .popupTextarea:read-only {
+    width: 160px;
     border: none;
 }
 .popupTextarea:-moz-read-only {
@@ -110,7 +123,7 @@ textarea::-webkit-scrollbar-thumb {
 
 .relatedLabel {
     padding: 0px;
-    width: 95px;
+    width: 110px;
     display: block;
     float: left;
     clear: left;
@@ -120,22 +133,21 @@ textarea::-webkit-scrollbar-thumb {
     padding: 2px;
     background-color: rgb(253, 253, 253);
     border-radius: 4px;
+    vertical-align: top;
+}
+#attachmentDiv {
+    margin-top: 4px;
 }
 #attachmentSelect {
     width: 115px;
 }
+#attachmentLabel {
+    width: 90px;
+}
 .relatedButtons {
     margin: 1px;
     width: 24px;
-    /* margin: 1px;
-    padding: 3px;
-    border-radius: 5px;
-    background-color: rgb(162, 215, 255);
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;  */
 }
-
 .leaflet-popup-content-wrapper {
     z-index: 1000;
     background-color:rgb(236, 244, 250);
