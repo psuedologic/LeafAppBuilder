@@ -1,4 +1,3 @@
-//import { relationships, relatedQuery } from './mainApp.js';
 export { Popup };
 
 window.Popup = Popup;
@@ -16,7 +15,6 @@ function Popup(bundle) {
     //Member Variables 
     var popups = [];
     var currentFeature;
-  
     var currentRelatedFeature;
     var sourceLayer = bundle.featureLayer;
     var url = bundle.featureLayer.options.url;
@@ -26,28 +24,23 @@ function Popup(bundle) {
     var relationships = [];
     var relationshipsData = [];
     var relationshipsConn = [];
-    var ready = false;
     var pageIndex = -1;
     var editMode = false;
     var moveMode = false;
     var popupEvent;
-
     var mainFields;
   
 
     //Perform initialization
     (function () {
         getFields().then(() => {
-            ready = true;
             getRelationshipConns();
             dataLayer.on("click", popup);
         });
 
-        
         // Create Crosshair
         let div = document.createElement('div');
         div.setAttribute("id","crosshairWrapper");
-        //div.style.cssText = 'position:absolute; display: none; left: 50%; top: 50%; height: 40px; margin: -20px; z-index:10000;'
 
         let cancelButton = document.createElement('img');
         cancelButton.setAttribute("onclick","Popup.events.cancelButtonClicked()");
@@ -85,9 +78,6 @@ function Popup(bundle) {
             .done((data) => {
                 mainFields = data.fields;
                 relationships = data.relationships;
-                // if (relationships.length > 0 ) {
-                //     getRelationshipConns() 
-                // }
                 resolve();
             }).fail((error) => {
                 console.err("Unable to retrieve data in getFields method for popup")
@@ -357,12 +347,13 @@ function Popup(bundle) {
 
                 return text;
             }
-            //Helper function to generate Options for related select menu
-            function genOptions(res) {
-                let relatedOptions = "";
-                let layerName = res.relation.name;
 
-                res.features.map((feature) => {
+            //Helper function to generate Options for related select menu
+            function genOptions(responseData) {
+                let relatedOptions = "";
+                let layerName = responseData.relation.name;
+
+                responseData.features.map((feature) => {
                     let option;
                     
                     //If the current options is in the global related key override, use that override
@@ -392,6 +383,8 @@ function Popup(bundle) {
 
         });
     }
+    
+    //Helper function to override titles based on configurations
     function titleOverride(name) {
         for (let old in options.titleOverrides) {
             name = name.split(old).join(options.titleOverrides[old]);
@@ -439,10 +432,6 @@ function Popup(bundle) {
         generated.push( genToolbar(title));
         generated.push( genFields(fields, "related"));
         
-        // let toolbarText = genToolbar(title);
-        // let fieldsText = genFields(fields, "related");
-        //let popupText = toolbarText + fieldsText;        
-
         Promise.all(generated).then((popupComponents) => {
             let popupText = "";
             popupComponents.map((component, index) => {
@@ -464,7 +453,7 @@ function Popup(bundle) {
                 }
             }
             
-            popups[pageIndex] = popupText;        
+            popups[pageIndex] = popupText;
             currentFeature.openPopup();
             $(".popupTextarea").trigger("oninput");
             $("#backButton").prop("disabled", false);
@@ -663,7 +652,7 @@ function Popup(bundle) {
     }
     function openAttachmentButtonClicked() {
         let featureId = currentFeature.feature.id;
-        let selectedOption = $("#openAttachButton").parent().prev().find(":selected");
+        let selectedOption = $("#attachmentSelect").find(":selected");
 
         let attachId = selectedOption.attr("value");
 
@@ -690,11 +679,25 @@ function Popup(bundle) {
                 processData: false,
                 data: formData,
             }).done((res) => {
-                // console.log(res.addAttachmentResult.success)
-                // console.log("response");
-                // console.log(res);
-                if (res.addAttachmentResult.success) {
+                if (res.addAttachmentResult !== undefined && res.addAttachmentResult.success) {
+                    let newAttachment = document.createElement("option");
+                    let objectId = res.addAttachmentResult.objectId;
+
+                    newAttachment.setAttribute("value", objectId);
+                    newAttachment.setAttribute("data-contentType", file.type);
+                    
+                    $("#attachmentSelect").append(newAttachment);
+                    let newlyLoadedAttach = $(`#attachmentSelect option[value='${objectId}']`);
+                    newlyLoadedAttach.text(file.name);
+                    newlyLoadedAttach.prop("selected", true);
+                    
                     showChange("#addAttachButton", true);
+                }
+                else {
+                    if (res.error !== undefined) {
+                        alert(`Error: ${res.error.code} - ${res.error.message}\n${res.error.details[0]}`);
+                        showChange("#addAttachButton", false);
+                    }
                 }
             }).fail((error) => {
                 console.error("Unable to upload attachment");
@@ -705,9 +708,9 @@ function Popup(bundle) {
     }
     //Change the background of the incoming button to green temporarily to show success.
     function deleteAttachButtonClicked() {
-        let selectedOption = $("#openAttachButton").parent().prev().find(":selected");
+        let selectedOption = $("#attachmentSelect").find(":selected");
 
-        let deleteFlag = confirm(`Do you want to permanently delete '${selectedOption.html()}':`)
+        let deleteFlag = confirm(`Do you want to permanently delete '${selectedOption.html()}':`);
         if (deleteFlag) {
             let featureId = currentFeature.feature.id;
             let deleteUrl = `${url}${featureId}/deleteAttachments`;
@@ -722,12 +725,13 @@ function Popup(bundle) {
             .done((data) => {
                 if (data.deleteAttachmentResults[0].success) {
                     showChange("#deleteAttachButton", true);
+                    selectedOption.remove();
                 }
                 else {
                     showChange("#deleteAttachButton", false);
                 }
             }).fail((error) => {
-                console.error("Unable to push updates to DB")
+                console.error("Unable to push updates to DB");
             });
            
         }
