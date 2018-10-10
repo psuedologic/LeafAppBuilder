@@ -1,6 +1,11 @@
 export { Popup };
 
-window.Popup = Popup;
+// -----------------------------------------------------------------------------------------------
+// Module Name:     Popup
+// Author:          Talon Gonyeau
+// Purpose:
+// Dependencies:    TBD (Leaflet, jquery, esri-leaflet, ...)
+// -----------------------------------------------------------------------------------------------
 
 function Popup(bundle) {
     //Construction Validation
@@ -28,17 +33,17 @@ function Popup(bundle) {
     var editMode = false;
     var moveMode = false;
     var popupEvent;
-    var mainFields;
-  
-
-    //Perform initialization
+    var sourceLayerFields;
+    
+    // -----------------------------------------------------------------------------------------------
+    // Initialize Construction of Popup
+    // -----------------------------------------------------------------------------------------------
     (function () {
         getFields().then(() => {
             getRelationshipConns();
-            dataLayer.on("click", popup);
+            sourceLayer.on("click", genPopup);
         });
 
-        // Create Crosshair
         let div = document.createElement('div');
         div.setAttribute("id","crosshairWrapper");
 
@@ -50,7 +55,6 @@ function Popup(bundle) {
         let crosshair = document.createElement('img');
         crosshair.setAttribute("id","crosshair");
         crosshair.setAttribute("src","images/crosshair.png");
-        //crosshair.style.cssText = ''
 
         let confirmButton = document.createElement('img');
         confirmButton.setAttribute("onclick","Popup.events.confirmButtonClicked()");
@@ -70,47 +74,25 @@ function Popup(bundle) {
             options.allowMove = true;
         }
     })();
-
-    //Grab all fields for the current feature layer.
-    function getFields() {
-        return new Promise(function(resolve, reject) {
-            $.ajax({url: url + "/?f=json", method: "GET"})
-            .done((data) => {
-                mainFields = data.fields;
-                relationships = data.relationships;
-                resolve();
-            }).fail((error) => {
-                console.err("Unable to retrieve data in getFields method for popup")
-                reject(error);
-            });
-        });
-    }
-
-    //Grab all relationships for the current feature layer
-    function getRelationshipConns() {
-        relationships.map((relation, index) => {
-            let featureClass = L.esri.featureLayer({
-                url: sourceLayer.options.url.slice(0, -2) + index
-            });
-            relationshipsConn.push(featureClass);
-        });
-        window.relationshipsConn = relationshipsConn;
-    }
-
+    
+    // -----------------------------------------------------------------------------------------------
+    // HTML Generator and utilities
+    // -----------------------------------------------------------------------------------------------
+    
+    
     //Generate a popup in response to an event
-    function popup(event) {
+    function genPopup(event) {
         popupEvent = event;
         pageIndex = -1;
         popups = [];
         let generated = [];
         
         currentFeature = sourceLayer.getFeature(event.layer.feature.id);
-        // console.log(currentFeature);
         currentFeature.unbindPopup();
         let currentId = event.layer.feature.id;
 
         generated.push( genToolbar(options.titleOverride));
-        generated.push( genFields(mainFields));
+        generated.push( genFields(sourceLayerFields));
         generated.push( genAttachments(currentId, currentFeature.options.url));
         generated.push( genRelated(currentId));
         
@@ -120,27 +102,25 @@ function Popup(bundle) {
             popupComponents.map((component, index) => {
                 popupText += component;
             });
-
             currentFeature.bindPopup(function(layer) {
                 let popup = L.Util.template(popupText, layer.feature.properties);
                 pageIndex++;
                 popups[pageIndex] = popup;
-                
                 return popup;
             });
-
             currentFeature.openPopup();
+            correctSpacerHeight();
             resetButtons();
 
-            $(".popupTextarea").trigger("oninput");            
-        
+            $(".popupTextarea").trigger("oninput");
+
         }).catch(console.log.bind(console));
     }
 
     //Create the toolbar portion of the popup, Consisting of title and toolbar
     function genToolbar(titleOverride) {
         // Create Title
-        let title = "<div id='PopupToolbar'><span>";
+        let title = "<div id='popupToolbar'><span>";
         if (titleOverride !== undefined) {
             title += titleOverride  + "</span>";
         }
@@ -152,31 +132,30 @@ function Popup(bundle) {
         //Create Buttons
         let buttons = "";
 
-        buttons += genButton({"className":"popup", 
-                              "button":"back", 
+        buttons += genButton({"className":"popup",
+                              "button":"back",
                               "state":"disabled"});
-        buttons += genButton({"className":"popup", 
-                              "button":"forward", 
+        buttons += genButton({"className":"popup",
+                              "button":"forward",
                               "state":"disabled"});
         if (options.allowEdits) {
-            buttons += genButton({"className":"popup", 
+            buttons += genButton({"className":"popup",
                                 "button":"edit"});
         }
         if (options.allowMove) {
-            buttons += genButton({"className":"popup", 
+            buttons += genButton({"className":"popup",
                                 "button":"move"});
         }
         if (options.allowEdits || options.allowMove) {
-            buttons += genButton({"className":"popup", 
-                                "button":"cancel", 
+            buttons += genButton({"className":"popup",
+                                "button":"cancel",
                                 "state":"disabled"});
-            buttons += genButton({"className":"popup", 
-                                "button":"confirm", 
+            buttons += genButton({"className":"popup",
+                                "button":"confirm",
                                 "state":"disabled"});
         }
 
-        
-        let closingTags = "<hr></div>";
+        let closingTags = "<hr></div><div id='popupToolbarSpacer'></div>";
         return Promise.resolve(title + buttons + closingTags);
     }
     //Helper function to make buttons
@@ -201,8 +180,8 @@ function Popup(bundle) {
             id = options.button + "Button";
         }
 
-        return `<input class='${options.className}Buttons' title="${tooltip}" 
-                 type='image' src='images/${options.button}.png' ${options.state} 
+        return `<input class='${options.className}Buttons' title="${tooltip}"
+                 type='image' src='images/${options.button}.png' ${options.state}
                  ${functionCall} id='${id}' />`;
     }
     //Function to generates fields
@@ -221,14 +200,14 @@ function Popup(bundle) {
             }
             //Helper function to generate a individual field
             function genField(key, label, value) {
-                return `<div class='popupField'><label class='popupLabel'>${label}:</label> 
-                <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)' 
+                return `<div class='popupField'><label class='popupLabel'>${label}:</label>
+                <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)'
                 readonly >${value}</textarea></div>`;
             }
         } else if (type == "related") {
             for (let key in fields) {
                 if (! options.hide.global.includes(key)) {
-                    fieldsText += `<div class='popupField'><label class='popupLabel'>${titleOverride(key)}:</label> 
+                    fieldsText += `<div class='popupField'><label class='popupLabel'>${titleOverride(key)}:</label>
                     <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)'
                      readonly >${fields[key]}</textarea></div>`
                 }
@@ -244,7 +223,7 @@ function Popup(bundle) {
             let url = `${baseUrl}${id}/attachments`;
             let attachmentsPromise = (() => {
                 return new Promise((resolve, reject) => {
-                    $.post( {
+                    $.post({
                         url: url,
                         dataType: "json",
                         data: { "f":"json" }
@@ -259,31 +238,31 @@ function Popup(bundle) {
 
             attachmentsPromise.then((attachments) => {
                 let options = "";
-                if (attachments.length > 0) {
+                let openAttachState = undefined;
+                if (attachments !== undefined && attachments.length > 0) {
                     options = genOptions(attachments);
-
-                } else {
-                    console.log("no attachments");
-                    
                 }
-                attachmentText =    
-                    //`<hr id="attachmentDivider">
+                else {
+                    openAttachState = "disabled";
+                }
+                attachmentText =
                     `<div id="attachmentDiv">
                         <label id="attachmentLabel">Attachments:</label>
                         <select id="attachmentSelect">${options}</select>
                         <div id="attachmentControls">
-                            ${genButton({"className":"attach", 
-                                        "button":"openAttach", 
-                                        "tooltip":"Open Attachment"})}
+                            ${genButton({"className":"attach",
+                                        "button":"openAttach",
+                                        "tooltip":"Open Attachment",
+                                        "state": openAttachState})}
                             ${genButton({"className":"attach",
                                         "id":"deleteAttachButton",
                                         "button":"delete",
                                         "state":"disabled",
                                         "onClick":"onclick='Popup.events.deleteAttachButtonClicked()'"})}
-                            ${genButton({"className":"attach", 
+                            ${genButton({"className":"attach",
                                         "button":"addAttach",
                                         "state":"disabled",
-                                        "tooltip":"Add Attachment"})}                            
+                                        "tooltip":"Add Attachment"})}
                         </div>
                     </div>`;
                     /*
@@ -305,9 +284,44 @@ function Popup(bundle) {
     }
     //Function to generate related table links
     function genRelated(currentId) {
+        //Generates a related table link based on response from get request.
+        function genRelatedField(res) { //lateName, id) {
+            let name = res.relation.name;
+            name = name.split(".").slice(2).join(".");
+            name = titleOverride(name);
+            
+            let relatedOptions = genOptions(res);
+            let text = 
+               `<label class='relatedLabel'> ${name}:  </label>
+                <select class='relatedSelect'>${relatedOptions}</select>
+                ${genButton({"className":"related", 
+                            "button":"open",
+                            "onClick":`onclick="(Popup.events.openRelatedPopup(this,'${res.relation.name}'))"`})}
+                `;
+            return text;
+        }
+        //Helper function to generate Options for related select menu
+        function genOptions(responseData) {
+            let relatedOptions = "";
+            let layerName = responseData.relation.name;
+            responseData.features.map((feature) => {
+                let option;
+                
+                //If the current options is in the global related key override, use that override
+                if (options.relatedKeyOverrides.hasOwnProperty(layerName)) {
+                    option = feature.properties[ options.relatedKeyOverrides[layerName]];
+                } //Else use the default override
+                else {  
+                    option = feature.properties[options.relatedKey];
+                }
+                relatedOptions += `<option value='${feature.properties.OBJECTID}'>${option}</option>`
+            });
+            return relatedOptions;
+        }
+
         return new Promise((outerResolve, outerReject) => {
             let relatedText = "";
-            let relatedQuery = L.esri.Related.query(dataLayer);
+            let relatedQuery = L.esri.Related.query(sourceLayer);
             
             let relationshipsPromise = relationships.map((relation, index) => {
                 return new Promise((resolve, reject) => {
@@ -325,48 +339,6 @@ function Popup(bundle) {
                     });
                 });
             });
-
-             //Generates a related table link based on response from get request.
-             function genRelatedField(res) { //lateName, id) {
-                let name = res.relation.name;
-                name = name.split(".").slice(2).join(".");
-                name = titleOverride(name);
-                
-                let relatedOptions = genOptions(res);
-
-                let text = 
-                   `<label class='relatedLabel'> ${name}:  </label>
-                    <select class='relatedSelect'>${relatedOptions}</select>
-                    ${genButton({"className":"related", 
-                                "button":"open",
-                                "onClick":`onclick="(Popup.events.openRelatedPopup(this,'${res.relation.name}'))"`})}
-                    `;
-                    /*<input type='button' value='Go' class='relatedButton'
-                        onclick="Popup.events.openRelatedPopup(this,'${res.relation.name}')">
-                    </input><br>`*/
-
-                return text;
-            }
-
-            //Helper function to generate Options for related select menu
-            function genOptions(responseData) {
-                let relatedOptions = "";
-                let layerName = responseData.relation.name;
-
-                responseData.features.map((feature) => {
-                    let option;
-                    
-                    //If the current options is in the global related key override, use that override
-                    if (options.relatedKeyOverrides.hasOwnProperty(layerName)) {
-                        option = feature.properties[ options.relatedKeyOverrides[layerName]];
-                    } //Else use the default override
-                    else {  
-                        option = feature.properties[options.relatedKey];
-                    }
-                    relatedOptions += `<option value='${feature.properties.OBJECTID}'>${option}</option>`
-                });
-                return relatedOptions;
-            }
             
             Promise.all(relationshipsPromise).then(responses => {
                 responses.forEach(res => {
@@ -383,18 +355,9 @@ function Popup(bundle) {
 
         });
     }
-    
-    //Helper function to override titles based on configurations
-    function titleOverride(name) {
-        for (let old in options.titleOverrides) {
-            name = name.split(old).join(options.titleOverrides[old]);
-        }
-        return name;
-    }
-    // -----------------------------------------------------------------------------------------------
-    // Button/ Event Handlers
-    function openRelatedPopup(button, relatedName) {
+    function genRelatedPopup(button, relatedName) {
         let id = $(button).prev().find(":selected").attr("value");
+        
         let fields;
         let targetFeature;
         let targetFeatureName;
@@ -407,6 +370,8 @@ function Popup(bundle) {
                 targetId = data.relation.relatedTableId;
             }
         });
+        let baseUrl = `${url.slice(0, -2)}${targetId}/`;
+
         targetFeature.map((entity, index) => {
             if (entity.id == id) {
                 fields = entity.properties;
@@ -431,6 +396,7 @@ function Popup(bundle) {
         let generated = [];
         generated.push( genToolbar(title));
         generated.push( genFields(fields, "related"));
+        generated.push( genAttachments(id, baseUrl));
         
         Promise.all(generated).then((popupComponents) => {
             let popupText = "";
@@ -455,15 +421,23 @@ function Popup(bundle) {
             
             popups[pageIndex] = popupText;
             currentFeature.openPopup();
+            correctSpacerHeight();
             $(".popupTextarea").trigger("oninput");
             $("#backButton").prop("disabled", false);
             if (!options.relatedAllowMove) {
                 $("#moveButton").prop("disabled", true);
             }
-
         }).catch(console.log.bind(console));
     }
 
+    // -----------------------------------------------------------------------------------------------
+    // Button and Event Handlers
+    // -----------------------------------------------------------------------------------------------
+    function openRelatedPopup(button, relatedName) {
+        genRelatedPopup(button, relatedName);
+    }
+
+    // Responds to text box input and resizes to change as the user types.
     function resizeTextarea(context) {
         context.style.height = "";
         context.style.height = context.scrollHeight + "px";
@@ -499,7 +473,7 @@ function Popup(bundle) {
         $(`#editButton, #addAttachButton, #deleteAttachButton`).addClass("highlightedButton");
 
         $("#moveButton").prop("disabled", true);
-        $("#addAttachButton, #deleteAttachButton").prop("disabled", false);
+        $("#addAttachButton, #deleteAttachButton").prop("disabled", false).css("background","");
         $(".popupTextarea").prop("readonly", false);
         editMoveMode();
     }
@@ -514,41 +488,11 @@ function Popup(bundle) {
         $(".leaflet-popup-content-wrapper").css("opacity","0.2");
         editMoveMode();
     }
-    function pushEdits(url, edits) {
-        return new Promise(function(resolve, reject) {
-            $.post({
-                url: url,
-                dataType: "json",
-                data: {"f":"json",
-                    "updates": JSON.stringify(edits)}
-            })
-            .done((data) => {
-                if (data.updateResults !== undefined && 
-                    data.updateResults[0] !== undefined &&
-                    data.updateResults[0].success) {
-                    showChange("#editButton", true);
-                    resolve(data);
-                }
-                else {
-                    showChange("#editButton", false);
-                    if (data.error !== undefined) {
-                        alert(`Error: ${data.error.code} - ${data.error.message}\n${data.error.details[0]}`);
-                    }
-                    console.error("Unable to push updates to DB - Unknown Error")
-                    reject(data);
-                }
-            }).fail((error) => {
-                console.error("Unable to push updates to DB - Post Failed")
-            });
-        });
 
-
-    }
     function confirmButtonClicked() {
         function getTextareas(data, objectId) {
             let form = $("#popupForm")[0]
-            let feature = 
-            [{
+            let feature = [{
                 "attributes": {
                         "OBJECTID": objectId
                     },
@@ -578,12 +522,12 @@ function Popup(bundle) {
                 sourceLayer.updateFeature(currentFeature.toGeoJSON(), (error, res) => {
                     if (error !== undefined) {
                         showChange("#editButton", false);
-                        popup(popupEvent);
+                        genPopup(popupEvent);
                         alert(`Error: ${error.code} - ${error.message}\n${error.details[0]}`);
                     }
                     else {
                         showChange("#editButton", true);
-                        popup(popupEvent);
+                        genPopup(popupEvent);
                     }
                 });
             }
@@ -597,21 +541,18 @@ function Popup(bundle) {
         }
         else if (moveMode) {
             if (pageIndex == 0) { //On main popup
-                
                 let coords = sourceLayer._map.getCenter();
-                let updatedFeature = currentFeature.toGeoJSON()
+                let updatedFeature = currentFeature.toGeoJSON();
                 updatedFeature.geometry.coordinates = [coords.lng, coords.lat];
 
                 sourceLayer.updateFeature(updatedFeature, (err, res) => {
-                    popup(popupEvent);
+                    genPopup(popupEvent);
                 });
-
             }
             else if (pageIndex == 1) { //On related popup
                 console.error("Unsupported operation: moving related record unimplemented");
             }
         }
-        
         resetButtons();
     }
     function cancelButtonClicked() {
@@ -631,7 +572,6 @@ function Popup(bundle) {
         moveMode = false;
         $(".popupTextarea").prop("readonly", true);
         
-
         if (pageIndex == 0 && popups.length >= 2) {
             $("#forwardButton").prop("disabled", false);
             $("#moveButton").prop("disabled", false);
@@ -642,35 +582,62 @@ function Popup(bundle) {
                 $("#moveButton").prop("disabled", true);
             }
         }
+        if ($("#attachmentSelect").children().length === 0) {
+            $("#openAttachButton").prop("disabled", true);
+        }
+        else {
+            $("#openAttachButton").prop("disabled", false);
+        }
 
         $("#crosshairWrapper").hide();
         $(".leaflet-popup-content-wrapper").css("opacity","1.0");
         $("#editButton").prop("disabled", false);
         $(`#confirmButton, #cancelButton, 
            #deleteAttachButton, #addAttachButton`).prop("disabled", true);
-        $(".popupButtons").removeClass("highlightedButton");
+        $(".popupButtons, .attachButtons").removeClass("highlightedButton");
+        $(".attachButtons").css("background", "none");
     }
     function openAttachmentButtonClicked() {
-        let featureId = currentFeature.feature.id;
+        let featureId;
         let selectedOption = $("#attachmentSelect").find(":selected");
-
         let attachId = selectedOption.attr("value");
-
-        let attachmentUrl = `${url}${featureId}/attachments/${attachId}`;
-        window.open(attachmentUrl, "_blank");
+        if (attachId !== undefined) {
+            let attachmentUrl;
+            if (pageIndex === 0) {
+                featureId = currentFeature.feature.id;
+                attachmentUrl = `${url}${featureId}/attachments/${attachId}`;
+            }
+            else if (pageIndex === 1) {
+                featureId = currentRelatedFeature.feature.properties.OBJECTID;
+                attachmentUrl = `${currentRelatedFeature.options.url}/${featureId}/attachments/${attachId}`;
+            }
+            window.open(attachmentUrl, "_blank");
+        }
     }
     function addAttachButtonClicked() {
+        let uploadUrl;
+
         let attach = document.createElement('input');
         attach.setAttribute("type","file");
         attach.addEventListener("change", (event) => {
             let file = attach.files[0];
-            let featureId = currentFeature.feature.id;
-            let uploadUrl = `${url}${featureId}/addAttachment`;
+            let attachUrl = url;
+            let id;
+            
+            if (pageIndex === 0) {
+                id = currentFeature.feature.id;
+            } 
+            else if (pageIndex === 1) {
+                attachUrl = currentRelatedFeature.options.url + "/";
+                id = currentRelatedFeature.feature.properties.OBJECTID;
+            }
+            uploadUrl = `${attachUrl}${id}/addAttachment`;
+            
             let formData = new FormData();
             formData.append("f","json");
             formData.append("attachment", file);
 
-            $.ajax( {
+            $.ajax({
                 url: uploadUrl,
                 method: 'POST',
                 type: 'POST',
@@ -690,6 +657,7 @@ function Popup(bundle) {
                     let newlyLoadedAttach = $(`#attachmentSelect option[value='${objectId}']`);
                     newlyLoadedAttach.text(file.name);
                     newlyLoadedAttach.prop("selected", true);
+                    $("#openAttachButton").prop("disabled",false)
                     
                     showChange("#addAttachButton", true);
                 }
@@ -712,8 +680,17 @@ function Popup(bundle) {
 
         let deleteFlag = confirm(`Do you want to permanently delete '${selectedOption.html()}':`);
         if (deleteFlag) {
-            let featureId = currentFeature.feature.id;
-            let deleteUrl = `${url}${featureId}/deleteAttachments`;
+            let featureId;
+            let deleteUrl;
+            if (pageIndex === 0) {
+                featureId = currentFeature.feature.id;
+                deleteUrl = `${url}${featureId}/deleteAttachments`;
+            }
+            else if (pageIndex === 1) {
+                featureId = currentFeature.feature.id;
+                deleteUrl = `${currentRelatedFeature.options.url}/${featureId}/deleteAttachments`;
+                console.log(`deleteUrl: ${deleteUrl}`);
+            }
             let attachmentId = selectedOption.attr("value");
 
             $.post({
@@ -723,9 +700,13 @@ function Popup(bundle) {
                     "attachmentIds":attachmentId}
             })
             .done((data) => {
+                console.log(data);
                 if (data.deleteAttachmentResults[0].success) {
                     showChange("#deleteAttachButton", true);
                     selectedOption.remove();
+                    if ($("#attachmentSelect").children().length === 0) {
+                        $("#openAttachButton").prop("disabled",true)
+                    }
                 }
                 else {
                     showChange("#deleteAttachButton", false);
@@ -735,6 +716,75 @@ function Popup(bundle) {
             });
            
         }
+    }
+    // -----------------------------------------------------------------------------------------------
+    // Utility and Helper Functions
+    // -----------------------------------------------------------------------------------------------
+    
+    function correctSpacerHeight() {
+        let height = $("#popupToolbar").height()
+        $("#popupToolbarSpacer").css("min-height", height);
+    }
+    // Push Edits to database - currently used by related popups
+    function pushEdits(url, edits) {
+        return new Promise(function(resolve, reject) {
+            $.post({
+                url: url,
+                dataType: "json",
+                data: {"f":"json",
+                    "updates": JSON.stringify(edits)}
+            })
+            .done((data) => {
+                if (data.updateResults !== undefined && 
+                    data.updateResults[0] !== undefined &&
+                    data.updateResults[0].success) {
+                    showChange("#editButton", true);
+                    resolve(data);
+                }
+                else {
+                    showChange("#editButton", false);
+                    if (data.error !== undefined) {
+                        alert(`Error: ${data.error.code} - ${data.error.message}\n${data.error.details[0]}`);
+                    }
+                    console.error("Unable to push updates to DB - Unknown Error")
+                    reject(data);
+                }
+            }).fail((error) => {
+                console.error("Unable to push updates to DB - Post Failed")
+            });
+        });
+    }
+    //Grab all fields for the current feature layer.
+    function getFields() {
+        return new Promise(function(resolve, reject) {
+            $.ajax({url: url + "/?f=json", method: "GET"})
+            .done((data) => {
+                sourceLayerFields = data.fields;
+                relationships = data.relationships;
+                resolve();
+            }).fail((error) => {
+                console.err("Unable to retrieve data in getFields method for popup")
+                reject(error);
+            });
+        });
+    }
+    //Grab all relationships for the current feature layer
+    function getRelationshipConns() {
+        relationships.map((relation, index) => {
+            let featureClass = L.esri.featureLayer({
+                url: sourceLayer.options.url.slice(0, -2) + index
+            });
+            relationshipsConn.push(featureClass);
+        });
+        window.relationshipsConn = relationshipsConn;
+    }    
+
+    //Helper function to override titles based on configurations
+    function titleOverride(name) {
+        for (let old in options.titleOverrides) {
+            name = name.split(old).join(options.titleOverrides[old]);
+        }
+        return name;
     }
     //Change the background of the incoming button to green/red temporarily to show outcome.
     function showChange(buttonId, success) {
@@ -753,6 +803,12 @@ function Popup(bundle) {
             }, 1000);
     }
 
+    // -----------------------------------------------------------------------------------------------
+    // Externally defined functionality and window global variables.
+    // -----------------------------------------------------------------------------------------------
+
+    window.Popup = Popup;
+
     //Defines global functions that are called by buttons/ event
     window.Popup.events = {
         openRelatedPopup: openRelatedPopup,
@@ -770,7 +826,7 @@ function Popup(bundle) {
     //Publically accessible members and methods.
     return {
         url: url,
-        popup: popup,
+        popup: genPopup,
         options: options,
         setTitleOverrides: (title) => {
             options.titleOverrides = title;

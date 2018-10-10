@@ -1,4 +1,4 @@
-#PopupToolbar span {
+#popupToolbar span {
     width: 120px;
     margin-bottom: 4px;
     display: inline-block;
@@ -22,17 +22,25 @@ input.highlightedButton {
     background-color:rgb(162, 215, 255);
 }
 
-/* #PopupToolbar {
+ #popupToolbar {
     position: absolute;
-    top: 12px;
-    height: 32px;
+    background-color: rgb(236, 244, 250);
+    padding-top: 14px;
+    padding-right: 1px;
+    /* margin-top: -15px; */
+    z-index: 100000;
+}
+#popupToolbarSpacer {
+    min-height: 45px;
+    padding-top: 14px;
+    margin-top: -1px;
 }
 
-#popupForm {
+/* #popupForm {
     margin-top: 56px;
-} */
+}  */
 
-#PopupToolbar span, label.popupLabel, label.relatedLabel, label#attachmentLabel {
+#popupToolbar span, label.popupLabel, label.relatedLabel, label#attachmentLabel {
     font-weight: 600;
     vertical-align: top;
     margin: 4px;
@@ -59,10 +67,6 @@ label.relatedLabel, select.relatedSelect, input.relatedButton {
     max-height: 50px;
     overflow-y: scroll;
     resize: none;
-    /* width: 145px;
-    background-color: rgb(253, 253, 253);
-    border-radius: 4px; */
-
 }
 
 #attachmentControls {
@@ -155,3 +159,6 @@ textarea::-webkit-scrollbar-thumb {
     max-height: 400px;
 }
 
+.leaflet-popup-content {
+    margin-top: 0px;
+}
