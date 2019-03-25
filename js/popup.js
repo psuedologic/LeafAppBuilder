@@ -1,10 +1,11 @@
+import { FeatureMove } from './cob-leaflet-utils.js'
 export { Popup };
 
 // -----------------------------------------------------------------------------------------------
 // Module Name:     Popup
 // Author:          Talon Gonyeau
-// Purpose:
-// Dependencies:    TBD (Leaflet, jquery, esri-leaflet, ...)
+// Purpose:         ಠ_ಠ
+// Dependencies:    Leaflet, jquery, esri-leaflet
 // -----------------------------------------------------------------------------------------------
 
 function Popup(bundle) {
@@ -34,37 +35,22 @@ function Popup(bundle) {
     var moveMode = false;
     var popupEvent;
     var sourceLayerFields;
+    var featureMove;
     
     // -----------------------------------------------------------------------------------------------
     // Initialize Construction of Popup
     // -----------------------------------------------------------------------------------------------
+
     (function () {
         getFields().then(() => {
             getRelationshipConns();
             sourceLayer.on("click", genPopup);
         });
 
-        let div = document.createElement('div');
-        div.setAttribute("id","crosshairWrapper");
-
-        let cancelButton = document.createElement('img');
-        cancelButton.setAttribute("onclick","Popup.events.cancelButtonClicked()");
-        cancelButton.setAttribute("src","images/cancel.png");
-        cancelButton.setAttribute("class","crosshairButtons");
-
-        let crosshair = document.createElement('img');
-        crosshair.setAttribute("id","crosshair");
-        crosshair.setAttribute("src","images/crosshair.png");
-
-        let confirmButton = document.createElement('img');
-        confirmButton.setAttribute("onclick","Popup.events.confirmButtonClicked()");
-        confirmButton.setAttribute("src","images/confirm.png");
-        confirmButton.setAttribute("class","crosshairButtons");
-
-        document.body.appendChild(div);
-        div.appendChild(cancelButton);
-        div.appendChild(crosshair);
-        div.appendChild(confirmButton);
+        featureMove = new FeatureMove({
+            onCancel: "Popup.events.cancelButtonClicked()",
+            onConfirm: "Popup.events.confirmButtonClicked()"
+        });
 
         //Assign defaults
         if (options.allowEdits === undefined) {
@@ -78,7 +64,6 @@ function Popup(bundle) {
     // -----------------------------------------------------------------------------------------------
     // HTML Generator and utilities
     // -----------------------------------------------------------------------------------------------
-    
     
     //Generate a popup in response to an event
     function genPopup(event) {
@@ -433,6 +418,7 @@ function Popup(bundle) {
     // -----------------------------------------------------------------------------------------------
     // Button and Event Handlers
     // -----------------------------------------------------------------------------------------------
+
     function openRelatedPopup(button, relatedName) {
         genRelatedPopup(button, relatedName);
     }
@@ -481,7 +467,7 @@ function Popup(bundle) {
         moveMode = true;
         let coords = currentFeature.feature.geometry.coordinates;
         currentFeature._map.setView([coords[1], coords[0]]);
-        $("#crosshairWrapper").show();
+        featureMove.show()        
 
         $("#moveButton").addClass("highlightedButton");
         $("#editButton").prop("disabled", true);
@@ -796,8 +782,7 @@ function Popup(bundle) {
         }
         else {
             attachButton.css("background-color", "rgb(262, 15, 55)");
-        }
-        
+        }        
         setTimeout( () => {
                 attachButton.css("background-color", oldColor) 
             }, 1000);
@@ -807,9 +792,8 @@ function Popup(bundle) {
     // Externally defined functionality and window global variables.
     // -----------------------------------------------------------------------------------------------
 
-    window.Popup = Popup;
-
     //Defines global functions that are called by buttons/ event
+    window.Popup = Popup;
     window.Popup.events = {
         openRelatedPopup: openRelatedPopup,
         resizeTextarea: resizeTextarea,

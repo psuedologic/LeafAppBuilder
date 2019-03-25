@@ -1,6 +1,6 @@
 # LeafAppBuilder
 
-** Synopsis **
+Synopsis
 ---------
 This library was created to solve a common class of software requests encountered at the City of Bremerton. Many of the departments within our organization utilize various asset-management systems, to spatial and tabularly manage their business data. Other departments utilize work order systems to track and collect both field data and work performance with iPads. While many of these systems could be addressed with Esri's customizable application builder, these solutions tended to solve the first 80% of the problem. Extending the WAB platform, could easily break the terms of service, and the source generated JS didn't lend itself to repurposing.
 
