@@ -11,6 +11,10 @@ export { FeatureMove };
 // -----------------------------------------------------------------------------------------------
 
 function FeatureMove(bundle) {
+    const MODULE_NAME = "utils.js"
+    let scripts = document.querySelector(`script[type=module][src$='${MODULE_NAME}']`)
+    var scriptRoot = scripts.src.replace(scripts.baseURI, "").replace("js/" + MODULE_NAME, "")
+
     //Construction Validation
     if (bundle === undefined) {
         throw new TypeError("Invalid input, please provide input parameters");
@@ -29,16 +33,16 @@ function FeatureMove(bundle) {
     
         let cancelButton = document.createElement('img');
         cancelButton.setAttribute("onclick", bundle.onCancel)//"Popup.events.cancelButtonClicked()");
-        cancelButton.setAttribute("src", "images/cancel.png");
+        cancelButton.setAttribute("src", scriptRoot + "images/cancel.png");
         cancelButton.setAttribute("class", "crosshairButtons");
     
         let crosshair = document.createElement('img');
         crosshair.setAttribute("id", "crosshair");
-        crosshair.setAttribute("src", "images/crosshair.png");
+        crosshair.setAttribute("src", scriptRoot + "images/crosshair.png");
     
         let confirmButton = document.createElement('img');
         confirmButton.setAttribute("onclick",  bundle.onConfirm)//"Popup.events.confirmButtonClicked()");
-        confirmButton.setAttribute("src", "images/confirm.png")
+        confirmButton.setAttribute("src", scriptRoot + "images/confirm.png")
         confirmButton.setAttribute("class", "crosshairButtons")
     
         document.body.appendChild(div);

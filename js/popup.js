@@ -1,4 +1,4 @@
-import { FeatureMove } from './cob-leaflet-utils.js'
+import { FeatureMove } from './utils.js'
 export { Popup };
 
 // -----------------------------------------------------------------------------------------------
@@ -19,6 +19,9 @@ function Popup(bundle) {
     }
 
     //Member Variables 
+    const MODULE_NAME = "popup.js"
+    let scripts = document.querySelector(`script[type=module][src$='${MODULE_NAME}']`)
+    var scriptRoot = scripts.src.replace(scripts.baseURI, "").replace("js/popup.js", "")
     var popups = [];
     var currentFeature;
     var currentRelatedFeature;
@@ -166,7 +169,7 @@ function Popup(bundle) {
         }
 
         return `<input class='${options.className}Buttons' title="${tooltip}"
-                 type='image' src='images/${options.button}.png' ${options.state}
+                 type='image' src='${scriptRoot}images/${options.button}.png' ${options.state}
                  ${functionCall} id='${id}' />`;
     }
     //Function to generates fields
