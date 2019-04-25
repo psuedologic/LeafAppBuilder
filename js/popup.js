@@ -27,9 +27,11 @@ function Popup(bundle) {
     var currentRelatedFeature;
     var sourceLayer = bundle.featureLayer;
     var url = bundle.featureLayer.options.url;
-    var options = bundle.options;
-        options.hide = {};
-        options.hide.global = ["GlobalID"]
+    var options = (bundle.options !== undefined) ? 
+            bundle.options : {};
+    options.hide = {};
+    options.hide.global = ["GlobalID"]
+
     var relationships = [];
     var relationshipsData = [];
     var relationshipsConn = [];
@@ -759,13 +761,14 @@ function Popup(bundle) {
     }
     //Grab all relationships for the current feature layer
     function getRelationshipConns() {
-        relationships.map((relation, index) => {
-            let featureClass = L.esri.featureLayer({
-                url: sourceLayer.options.url.slice(0, -2) + index
+        if (relationships !== undefined) {
+            relationships.map((relation, index) => {
+                let featureClass = L.esri.featureLayer({
+                    url: sourceLayer.options.url.slice(0, -2) + index
+                });
+                relationshipsConn.push(featureClass);
             });
-            relationshipsConn.push(featureClass);
-        });
-        window.relationshipsConn = relationshipsConn;
+        }       
     }    
 
     //Helper function to override titles based on configurations
