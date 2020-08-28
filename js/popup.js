@@ -20,7 +20,12 @@ function Popup(bundle) {
 
     //Member Variables 
     const MODULE_NAME = "popup.js"
+<<<<<<< Updated upstream
     let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
+=======
+    let scripts = document.querySelector(`script[type=module][src$='${MODULE_NAME}']`)
+    var scriptRoot = scripts.src.replace(scripts.baseURI, "").replace("js/popup.js", "")
+>>>>>>> Stashed changes
     var token = bundle.token
     var popups = [];
     var currentFeature;
@@ -80,7 +85,7 @@ function Popup(bundle) {
         currentFeature = sourceLayer.getFeature(event.layer.feature.id);
         currentFeature.unbindPopup();
         let currentId = event.layer.feature.id;
-
+        
         generated.push( genToolbar(options.titleOverride));
         generated.push( genFields(sourceLayerFields));
         generated.push( genAttachments(currentId, currentFeature.options.url));
