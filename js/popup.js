@@ -20,8 +20,8 @@ function Popup(bundle) {
 
     //Member Variables 
     const MODULE_NAME = "popup.js"
-    let scripts = document.querySelector(`script[type=module][src$='${MODULE_NAME}']`)
-    var scriptRoot = scripts.src.replace(scripts.baseURI, "").replace("js/popup.js", "")
+    let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
+    var token = bundle.token
     var popups = [];
     var currentFeature;
     var currentRelatedFeature;
@@ -171,7 +171,7 @@ function Popup(bundle) {
         }
 
         return `<input class='${options.className}Buttons' title="${tooltip}"
-                 type='image' src='${scriptRoot}images/${options.button}.png' ${options.state}
+                 type='image' src='./lib/images/${options.button}.png' ${options.state}
                  ${functionCall} id='${id}' />`;
     }
     //Function to generates fields
@@ -216,7 +216,7 @@ function Popup(bundle) {
                     $.post({
                         url: url,
                         dataType: "json",
-                        data: { "f":"json" }
+                        data: { "f":"json", token: token }
                     }).done((data) => {
                         resolve(data.attachmentInfos);
                     }).fail((error) => {
@@ -523,7 +523,7 @@ function Popup(bundle) {
                 });
             }
             else if (pageIndex == 1) { //On related popup
-                let url = currentRelatedFeature.options.url + "/applyEdits/";;
+                let url = currentRelatedFeature.options.url + "/applyEdits/";
                 let objectId = currentRelatedFeature.feature.properties.OBJECTID;
 
                 let feature = getTextareas({}, objectId);
@@ -627,6 +627,7 @@ function Popup(bundle) {
             let formData = new FormData();
             formData.append("f","json");
             formData.append("attachment", file);
+            formData.append("token", token)
 
             $.ajax({
                 url: uploadUrl,
@@ -688,7 +689,8 @@ function Popup(bundle) {
                 url: deleteUrl,
                 dataType: "json",
                 data: {"f":"json",
-                    "attachmentIds":attachmentId}
+                    "attachmentIds": attachmentId,
+                    "token": token}
             })
             .done((data) => {
                 console.log(data);
@@ -723,6 +725,7 @@ function Popup(bundle) {
                 url: url,
                 dataType: "json",
                 data: {"f":"json",
+                    "token": token,
                     "updates": JSON.stringify(edits)}
             })
             .done((data) => {
@@ -748,7 +751,11 @@ function Popup(bundle) {
     //Grab all fields for the current feature layer.
     function getFields() {
         return new Promise(function(resolve, reject) {
-            $.ajax({url: url + "/?f=json", method: "GET"})
+            $.ajax({
+                url: url + "/?f=json",
+                method: "GET",
+                data: {token: token}
+            })
             .done((data) => {
                 sourceLayerFields = data.fields;
                 relationships = data.relationships;

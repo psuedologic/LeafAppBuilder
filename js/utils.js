@@ -12,8 +12,7 @@ export { FeatureMove };
 
 function FeatureMove(bundle) {
     const MODULE_NAME = "utils.js"
-    let scripts = document.querySelector(`script[type=module][src$='${MODULE_NAME}']`)
-    var scriptRoot = scripts.src.replace(scripts.baseURI, "").replace("js/" + MODULE_NAME, "")
+    let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
 
     //Construction Validation
     if (bundle === undefined) {
