@@ -20,12 +20,7 @@ function Popup(bundle) {
 
     //Member Variables 
     const MODULE_NAME = "popup.js"
-<<<<<<< Updated upstream
     let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
-=======
-    let scripts = document.querySelector(`script[type=module][src$='${MODULE_NAME}']`)
-    var scriptRoot = scripts.src.replace(scripts.baseURI, "").replace("js/popup.js", "")
->>>>>>> Stashed changes
     var token = bundle.token
     var popups = [];
     var currentFeature;
