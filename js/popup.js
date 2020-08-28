@@ -80,7 +80,7 @@ function Popup(bundle) {
         currentFeature = sourceLayer.getFeature(event.layer.feature.id);
         currentFeature.unbindPopup();
         let currentId = event.layer.feature.id;
-
+        
         generated.push( genToolbar(options.titleOverride));
         generated.push( genFields(sourceLayerFields));
         generated.push( genAttachments(currentId, currentFeature.options.url));
