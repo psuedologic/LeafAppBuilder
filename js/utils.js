@@ -11,8 +11,8 @@ export { FeatureMove };
 // -----------------------------------------------------------------------------------------------
 
 function FeatureMove(bundle) {
-    const MODULE_NAME = "utils.js"
-    let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
+    // const MODULE_NAME = "utils.js"
+    let scriptRoot = "./"//import.meta.url.replace(`js/${MODULE_NAME}`, "")
 
     //Construction Validation
     if (bundle === undefined) {

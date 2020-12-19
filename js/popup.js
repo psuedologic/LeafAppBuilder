@@ -1,5 +1,9 @@
 import { FeatureMove } from './utils.js'
 export { Popup };
+var L = require('leaflet')
+var $ = require('jquery')
+var esri = require('esri-leaflet')
+var esriRelated = require('esri-leaflet-related')
 
 // -----------------------------------------------------------------------------------------------
 // Module Name:     Popup
@@ -19,8 +23,8 @@ function Popup(bundle) {
     }
 
     //Member Variables 
-    const MODULE_NAME = "popup.js"
-    let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
+    // const MODULE_NAME = "popup.js"
+    // let scriptRoot = import.meta.url.replace(`js/${MODULE_NAME}`, "")
     var token = bundle.token
     var popups = [];
     var currentFeature;
@@ -89,7 +93,7 @@ function Popup(bundle) {
         //Once all html is generated for the popup, then build and deploy the popup.
         Promise.all(generated).then((popupComponents) => {
             let popupText = "";
-            popupComponents.map((component, index) => {
+            popupComponents.map(component => {
                 popupText += component;
             });
             currentFeature.bindPopup(function(layer) {
@@ -180,6 +184,12 @@ function Popup(bundle) {
         let fieldsText = "<form id='popupForm'>";
 
         if (type === undefined || type == "main") {
+            //Helper function to generate a individual field
+            var genField = function(key, label, value) {
+                return `<div class='popupField'><label class='popupLabel'>${label}:</label>
+                <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)'
+                readonly >${value}</textarea></div>`;
+            }
             for (let i=0; i < fields.length; i++) {
                 let name = fields[i].name;
 
@@ -187,12 +197,6 @@ function Popup(bundle) {
                 if (! options.hide.global.includes(name)) {
                     fieldsText += genField(name, titleOverride(name),'{' + name + '}');
                 }
-            }
-            //Helper function to generate a individual field
-            function genField(key, label, value) {
-                return `<div class='popupField'><label class='popupLabel'>${label}:</label>
-                <textarea data-field='${key}' class='popupTextarea' rows='1' oninput='Popup.events.resizeTextarea(this)'
-                readonly >${value}</textarea></div>`;
             }
         } else if (type == "related") {
             for (let key in fields) {
@@ -208,7 +212,7 @@ function Popup(bundle) {
     }
     //Function to generate the attachments
     function genAttachments(id, baseUrl) {
-        return new Promise((outerResolve, outerReject) => {
+        return new Promise((outerResolve) => {
             let attachmentText = "";
             let url = `${baseUrl}${id}/attachments`;
             let attachmentsPromise = (() => {
@@ -264,7 +268,7 @@ function Popup(bundle) {
 
             function genOptions(attachments) {
                 let attachmentText = "";
-                attachments.map((attach, index) => {
+                attachments.map((attach) => {
                     attachmentText +=   `<option data-contentType='${attach.contentType}' 
                                                  value='${attach.id}' >${attach.name}</option>`
                 });
@@ -296,11 +300,12 @@ function Popup(bundle) {
             let layerName = responseData.relation.name;
             responseData.features.map((feature) => {
                 let option;
-                
+                /* eslint-disable no-prototype-builtins */
                 //If the current options is in the global related key override, use that override
                 if (options.relatedKeyOverrides.hasOwnProperty(layerName)) {
                     option = feature.properties[ options.relatedKeyOverrides[layerName]];
                 } //Else use the default override
+                /* eslint-enable no-prototype-builtins */
                 else {  
                     option = feature.properties[options.relatedKey];
                 }
@@ -309,17 +314,17 @@ function Popup(bundle) {
             return relatedOptions;
         }
 
-        return new Promise((outerResolve, outerReject) => {
+        return new Promise((outerResolve) => {
             let relatedText = "";
-            let relatedQuery = L.esri.Related.query(sourceLayer);
+            let relatedQuery = esriRelated.query(sourceLayer);
             
-            let relationshipsPromise = relationships.map((relation, index) => {
+            let relationshipsPromise = relationships.map((relation) => {
                 return new Promise((resolve, reject) => {
                 relatedQuery.objectIds(currentId)
                     .relationshipId("" + relation.id)
                     .returnGeometry(false)
                     .returnZ(false)
-                    .run(function(err, res, raw) {
+                    .run(function(err, res) {
                         res.relation = relation;
                         if (err !== undefined) {
                             console.err(err);
@@ -353,7 +358,7 @@ function Popup(bundle) {
         let targetFeatureName;
         let targetId;
 
-        relationshipsData.map((data, index) => {
+        relationshipsData.map((data) => {
             if (data.relation.name == relatedName) {
                 targetFeatureName = data.relation.name;
                 targetFeature = data.features;
@@ -362,7 +367,7 @@ function Popup(bundle) {
         });
         let baseUrl = `${url.slice(0, -2)}${targetId}/`;
 
-        targetFeature.map((entity, index) => {
+        targetFeature.map((entity) => {
             if (entity.id == id) {
                 fields = entity.properties;
             }
@@ -390,7 +395,7 @@ function Popup(bundle) {
         
         Promise.all(generated).then((popupComponents) => {
             let popupText = "";
-            popupComponents.map((component, index) => {
+            popupComponents.map((component) => {
                 popupText += component;
             });
             
@@ -506,11 +511,9 @@ function Popup(bundle) {
         }
         if (editMode) {
             if (pageIndex == 0) { //On main popup
-                let url = currentFeature.options.url + "applyEdits/";
-
                 getTextareas(currentFeature.feature.properties, currentFeature.feature.id);
 
-                sourceLayer.updateFeature(currentFeature.toGeoJSON(), (error, res) => {
+                sourceLayer.updateFeature(currentFeature.toGeoJSON(), (error) => {
                     if (error !== undefined) {
                         showChange("#editButton", false);
                         genPopup(popupEvent);
@@ -536,7 +539,7 @@ function Popup(bundle) {
                 let updatedFeature = currentFeature.toGeoJSON();
                 updatedFeature.geometry.coordinates = [coords.lng, coords.lat];
 
-                sourceLayer.updateFeature(updatedFeature, (err, res) => {
+                sourceLayer.updateFeature(updatedFeature, () => {
                     genPopup(popupEvent);
                 });
             }
@@ -610,7 +613,7 @@ function Popup(bundle) {
 
         let attach = document.createElement('input');
         attach.setAttribute("type","file");
-        attach.addEventListener("change", (event) => {
+        attach.addEventListener("change", () => {
             let file = attach.files[0];
             let attachUrl = url;
             let id;
@@ -660,7 +663,7 @@ function Popup(bundle) {
                     }
                 }
             }).fail((error) => {
-                console.error("Unable to upload attachment");
+                console.error("Unable to upload attachment", error);
                 showChange("#addAttachButton", false);
             });
         });
@@ -705,7 +708,7 @@ function Popup(bundle) {
                     showChange("#deleteAttachButton", false);
                 }
             }).fail((error) => {
-                console.error("Unable to push updates to DB");
+                console.error("Unable to push updates to DB", error);
             });
            
         }
@@ -744,7 +747,7 @@ function Popup(bundle) {
                     reject(data);
                 }
             }).fail((error) => {
-                console.error("Unable to push updates to DB - Post Failed")
+                console.error("Unable to push updates to DB - Post Failed", error)
             });
         });
     }
@@ -770,7 +773,7 @@ function Popup(bundle) {
     function getRelationshipConns() {
         if (relationships !== undefined) {
             relationships.map((relation, index) => {
-                let featureClass = L.esri.featureLayer({
+                let featureClass = esri.featureLayer({
                     url: sourceLayer.options.url.slice(0, -2) + index
                 });
                 relationshipsConn.push(featureClass);
